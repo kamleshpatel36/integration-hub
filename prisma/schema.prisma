@@ -1,0 +1,213 @@
+// Integration Hub — core multi-tenant schema
+// Design: shared DB, tenant_id on every row (see architecture notes in README)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// TENANCY & BILLING
+// ─────────────────────────────────────────────
+
+model Tenant {
+  id          String   @id @default(uuid())
+  name        String
+  planId      String   @default("free")
+  plan        Plan     @relation(fields: [planId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  connections Connection[]
+  mappings    Mapping[]
+  jobs        Job[]
+  usageDaily  UsageCounter[]
+  apiKeys     ApiKey[]
+
+  @@map("tenants")
+}
+
+model Plan {
+  id                String   @id // 'free' | 'pro' | 'enterprise'
+  name              String
+  monthlySyncQuota  Int      // e.g. 500 / 10000 / -1 (unlimited)
+  maxConcurrentJobs Int      @default(2) // per-tenant worker concurrency cap
+  rateLimitPerMin   Int      @default(30) // API calls / job dispatches per minute
+  tenants           Tenant[]
+
+  @@map("plans")
+}
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  keyHash   String   @unique // store hash, never plaintext
+  label     String?
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  @@map("api_keys")
+}
+
+// ─────────────────────────────────────────────
+// CONNECTIONS (per-tenant credentials to NetSuite / external systems)
+// ─────────────────────────────────────────────
+
+enum ConnectorType {
+  NETSUITE
+  SHOPIFY
+  SALESFORCE
+  GENERIC_REST
+}
+
+model Connection {
+  id            String        @id @default(uuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connectorType ConnectorType
+  label         String        // human-friendly name, e.g. "Prod NetSuite"
+  // Encrypted JSON blob: tokens, account id, base URLs, etc.
+  // Encryption/decryption handled in service layer (never store plaintext secrets).
+  credentialsEnc String
+  status        String        @default("pending") // pending | connected | error | expired
+  lastCheckedAt DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  mappingsAsSource Mapping[] @relation("sourceConnection")
+  mappingsAsTarget Mapping[] @relation("targetConnection")
+
+  @@index([tenantId])
+  @@map("connections")
+}
+
+// ─────────────────────────────────────────────
+// MAPPINGS (the config-driven integration definition)
+// ─────────────────────────────────────────────
+
+model Mapping {
+  id               String     @id @default(uuid())
+  tenantId         String
+  tenant           Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name             String
+  sourceConnectionId String
+  sourceConnection Connection @relation("sourceConnection", fields: [sourceConnectionId], references: [id])
+  targetConnectionId String
+  targetConnection Connection @relation("targetConnection", fields: [targetConnectionId], references: [id])
+
+  sourceObject     String     // e.g. "customer" (NetSuite record type)
+  targetObject     String     // e.g. "customer" (Shopify resource)
+
+  // Array of field-level mapping rules, simple-mode JSON (see src/types/mapping.ts)
+  fieldMappings    Json
+
+  triggerType      String     @default("poll") // poll | webhook | manual
+  pollIntervalSec  Int?       @default(300)
+  webhookSecret    String?    // set when triggerType = "webhook"; HMAC-SHA256 signing secret, shown once at creation
+  isActive         Boolean    @default(true)
+
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  jobs             Job[]
+
+  @@index([tenantId])
+  @@map("mappings")
+}
+
+// ─────────────────────────────────────────────
+// JOBS (execution log — one row per sync run)
+// ─────────────────────────────────────────────
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+  RETRYING
+}
+
+model Job {
+  id          String    @id @default(uuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  mappingId   String
+  mapping     Mapping   @relation(fields: [mappingId], references: [id])
+  status      JobStatus @default(QUEUED)
+  recordsRead Int       @default(0)
+  recordsWritten Int    @default(0)
+  errorMessage String?
+  attempt     Int       @default(1)
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, createdAt])
+  @@map("jobs")
+}
+
+// ─────────────────────────────────────────────
+// USAGE / QUOTA TRACKING
+// ─────────────────────────────────────────────
+
+model UsageCounter {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  date      DateTime // truncated to day
+  syncCount Int      @default(0)
+
+  @@unique([tenantId, date])
+  @@map("usage_counters")
+}
+
+// ─────────────────────────────────────────────
+// AUTOMATIC DATABASE BACKUPS (dynamic config — no redeploy needed to change)
+// ─────────────────────────────────────────────
+
+model BackupConfig {
+  // Singleton row, always fetched/updated by this fixed id. The backup
+  // scheduler re-reads this row every minute, so editing it via the admin
+  // API takes effect within a minute — no restart or redeploy required.
+  id              String   @id @default("default")
+  enabled         Boolean  @default(false)
+  cronSchedule    String   @default("0 3 * * *") // daily 03:00 UTC
+  retentionDays   Int      @default(30)
+  storageProvider String   @default("s3") // "s3" | "local"
+  s3Bucket        String?
+  s3Region        String?
+  // Encrypted {accessKeyId, secretAccessKey}. Optional — if unset, the
+  // scheduler falls back to BACKUP_S3_ACCESS_KEY_ID / BACKUP_S3_SECRET_ACCESS_KEY
+  // env vars, so you can bootstrap via env and later rotate via API without
+  // touching deploy config.
+  s3CredentialsEnc String?
+  localPath       String?  @default("/var/backups/integration-hub")
+  lastRunAt       DateTime?
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  runs BackupRun[]
+
+  @@map("backup_configs")
+}
+
+model BackupRun {
+  id           String       @id @default(uuid())
+  configId     String       @default("default")
+  config       BackupConfig @relation(fields: [configId], references: [id])
+  trigger      String       @default("scheduled") // "scheduled" | "manual"
+  status       String       @default("running")   // "running" | "success" | "failed"
+  startedAt    DateTime     @default(now())
+  finishedAt   DateTime?
+  sizeBytes    Int?
+  location     String?      // s3://bucket/key or a local file path
+  errorMessage String?
+
+  @@index([configId, startedAt])
+  @@map("backup_runs")
+}

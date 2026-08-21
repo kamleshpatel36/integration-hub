@@ -1,0 +1,118 @@
+envVarGroups:
+  - name: integration-hub-shared
+    envVars:
+      # generateValue produces a random value ONCE and Render keeps it
+      # identical across every service referencing this group — required
+      # because the worker/backup services must decrypt what the API encrypted.
+      - key: CREDENTIALS_MASTER_KEY
+        generateValue: true
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      # Optional bootstrap defaults for automatic backups — S3 bucket/region
+      # and static creds. All of this can also be set or changed later via
+      # PATCH /api/admin/backup-config without touching these or redeploying;
+      # these env vars are just a convenient starting point.
+      - key: BACKUP_S3_ACCESS_KEY_ID
+        sync: false
+      - key: BACKUP_S3_SECRET_ACCESS_KEY
+        sync: false
+      # AWS KMS for tenant credential encryption (recommended for production
+      # — see README "Credential encryption (KMS)"). Leave KMS_KEY_ID unset
+      # to keep using CREDENTIALS_MASTER_KEY above; set it once you've
+      # created the CMK and IAM user, then run the migration script.
+      - key: KMS_KEY_ID
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+
+databases:
+  - name: integration-hub-db
+    plan: starter
+    databaseName: integration_hub
+    user: integration_hub
+
+services:
+  - type: keyvalue
+    name: integration-hub-redis
+    plan: starter
+    ipAllowList: [] # no external access — only our own services on Render's private network
+
+  - type: web
+    name: integration-hub-api
+    runtime: docker
+    plan: starter
+    # migrate deploy runs at container START (not Docker build time) because
+    # DATABASE_URL isn't reliably reachable during the build step — this way
+    # every deploy applies pending migrations before the API starts serving.
+    dockerCommand: sh -c "npx prisma migrate deploy && node dist/index.js"
+    envVars:
+      - fromGroup: integration-hub-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: integration-hub-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: integration-hub-redis
+          type: keyvalue
+          property: connectionString
+      - key: PORT
+        value: 3000
+
+  - type: worker
+    name: integration-hub-worker
+    runtime: docker
+    plan: starter
+    dockerCommand: node dist/queue/worker.js
+    envVars:
+      - fromGroup: integration-hub-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: integration-hub-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: integration-hub-redis
+          type: keyvalue
+          property: connectionString
+
+  - type: worker
+    name: integration-hub-scheduler
+    runtime: docker
+    plan: starter
+    dockerCommand: node dist/queue/scheduler.js
+    envVars:
+      - fromGroup: integration-hub-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: integration-hub-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: integration-hub-redis
+          type: keyvalue
+          property: connectionString
+
+  # Automatic DB backups. `enabled` defaults to false (see schema.prisma) —
+  # turn it on via PATCH /api/admin/backup-config once s3Bucket/credentials
+  # are set, or supply BACKUP_S3_* above and flip `enabled: true` in the
+  # same request. Needs no REDIS_URL — it doesn't touch the job queue.
+  - type: worker
+    name: integration-hub-backup
+    runtime: docker
+    plan: starter
+    dockerCommand: node dist/queue/backupScheduler.js
+    envVars:
+      - fromGroup: integration-hub-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: integration-hub-db
+          property: connectionString
