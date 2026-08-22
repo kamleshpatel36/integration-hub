@@ -301,4 +301,3 @@ which backend *new* writes use.
 6. **Don't remove `CREDENTIALS_MASTER_KEY`** from your env even after
    migrating — keep it around in case you ever need to run the migration
    script again (e.g. against a restored backup taken before the migration).
-# integration-hub
