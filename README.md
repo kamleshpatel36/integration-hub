@@ -301,3 +301,40 @@ which backend *new* writes use.
 6. **Don't remove `CREDENTIALS_MASTER_KEY`** from your env even after
    migrating — keep it around in case you ever need to run the migration
    script again (e.g. against a restored backup taken before the migration).
+
+## Running everything on Render's Free plan
+
+Render's Free plan only offers a free instance type for **Web Services**,
+**Static Sites**, **Postgres**, and **Key Value** — **Background Workers**
+(and Private Services) require a paid Starter instance minimum, even one.
+That means the standard `render.yaml` in this repo — which deploys the
+worker, poll scheduler, and backup scheduler as three separate Background
+Workers — won't fully deploy on a Free-plan account; those three services
+either fail to create or silently need upgrading.
+
+To stay on Free, run everything in the single API web service instead:
+
+1. Set `RUN_INLINE_WORKERS=true` on `integration-hub-api`'s environment.
+   When set, `index.ts` starts the BullMQ worker, poll scheduler, and
+   backup scheduler in the same Node process as the Express server, right
+   after it starts listening — see the comment block in `src/index.ts`.
+2. Don't create `integration-hub-worker`, `integration-hub-scheduler`, or
+   `integration-hub-backup` as separate services at all — `render.free-tier.yaml`
+   in this repo is a ready-made single-service Blueprint that does this
+   (rename it to `render.yaml` before connecting the Blueprint, or manually
+   create one Web Service with the env vars it lists).
+3. Everything else — auth, connections, mappings, backups, KMS — works
+   identically; only the *deployment topology* changes.
+
+**Trade-offs versus the multi-service deployment** (acceptable for a pilot,
+revisit before real production load): sync jobs share CPU/RAM with API
+request handling instead of scaling independently, and there's less
+process-level isolation if one part misbehaves — though `startWorkerProcess()`
+and `startBackupScheduler()` deliberately avoid `process.exit()` so a
+failure in one doesn't take down the whole service.
+
+**If you're migrating from the multi-service setup to this one** (i.e. you
+already tried the paid path and want to switch to free): delete the
+`integration-hub-worker`, `-scheduler`, and `-backup` services from the
+Render dashboard if they exist, set `RUN_INLINE_WORKERS=true` on the API
+service, and redeploy it.

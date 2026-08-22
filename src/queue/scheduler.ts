@@ -42,8 +42,17 @@ async function tick() {
   }
 }
 
-cron.schedule("* * * * *", () => {
-  tick().catch((err) => logger.error({ err }, "scheduler tick failed"));
-});
+/**
+ * Exported so index.ts can start this in-process on a single free Web
+ * Service instead of requiring a separate paid Background Worker.
+ */
+export function startPollScheduler(): void {
+  cron.schedule("* * * * *", () => {
+    tick().catch((err) => logger.error({ err }, "scheduler tick failed"));
+  });
+  logger.info("Poll scheduler started (checking every minute)");
+}
 
-logger.info("Poll scheduler started (checking every minute)");
+if (require.main === module) {
+  startPollScheduler();
+}

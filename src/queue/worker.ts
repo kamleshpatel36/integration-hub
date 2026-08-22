@@ -126,7 +126,22 @@ async function main() {
   }, RESCAN_INTERVAL_MS);
 }
 
-main().catch((err) => {
-  logger.error({ err }, "worker process crashed");
-  process.exit(1);
-});
+/**
+ * Exported so index.ts can start this in-process on a single free Web
+ * Service (no separate paid Background Worker needed — see README
+ * "Running everything on Render's Free plan"). Deliberately does NOT
+ * process.exit on failure, since that would also kill the API server
+ * sharing this process; only the standalone-script path below does that.
+ */
+export async function startWorkerProcess(): Promise<void> {
+  await main();
+}
+
+// Only runs when this file is executed directly (`npm run worker`), i.e.
+// the separate-service deployment path — not when imported by index.ts.
+if (require.main === module) {
+  startWorkerProcess().catch((err) => {
+    logger.error({ err }, "worker process crashed");
+    process.exit(1);
+  });
+}

@@ -40,7 +40,19 @@ async function main() {
   }, TICK_INTERVAL_MS);
 }
 
-main().catch((err) => {
-  logger.error({ err }, "backup scheduler crashed");
-  process.exit(1);
-});
+/**
+ * Exported so index.ts can start this in-process on a single free Web
+ * Service instead of requiring a separate paid Background Worker.
+ * Deliberately does NOT process.exit on failure — that would kill the API
+ * server sharing this process when run inline.
+ */
+export async function startBackupScheduler(): Promise<void> {
+  await main();
+}
+
+if (require.main === module) {
+  startBackupScheduler().catch((err) => {
+    logger.error({ err }, "backup scheduler crashed");
+    process.exit(1);
+  });
+}
