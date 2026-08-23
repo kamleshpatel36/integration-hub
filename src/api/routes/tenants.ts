@@ -64,6 +64,19 @@ router.get("/me/usage", requireTenantAuth, async (req, res, next) => {
   }
 });
 
+// Admin-only: list every tenant (support/ops tooling, admin dashboard).
+router.get("/", requireAdmin, async (_req, res, next) => {
+  try {
+    const tenants = await prisma.tenant.findMany({
+      include: { plan: true },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(tenants);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Admin-only: look up any tenant by id (support/ops tooling)
 router.get("/:id", requireAdmin, async (req, res, next) => {
   try {

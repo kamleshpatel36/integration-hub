@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integration Hub</title>
+<style>
+  :root {
+    --bg: #0a0e17; --surface: #131826; --border: #232b3d; --text: #e2e4e9;
+    --text-dim: #7b8496; --teal: #2dd4bf; --teal-dim: #0f766e; --amber: #fbbf24;
+    --rose: #fb7185; --violet: #a78bfa; --green: #34d399;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .mono { font-family: "SF Mono", Consolas, Monaco, monospace; }
+  input, select, textarea, button { font-family: inherit; }
+  input, select, textarea {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 9px 12px; font-size: 13px; color: var(--text); font-family: monospace;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--teal-dim); }
+  label { font-size: 11px; color: var(--text-dim); font-family: monospace; display: block; margin-bottom: 4px; }
+  button { font-weight: 600; font-size: 12px; border: none; border-radius: 6px; padding: 9px 16px; cursor: pointer; }
+  .btn-primary { background: var(--teal); color: #05221f; }
+  .btn-primary:hover { background: #5eead4; }
+  .btn-primary:disabled { background: #3a4152; color: #6b7280; cursor: not-allowed; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost:hover { border-color: #3a4152; background: rgba(255,255,255,0.03); }
+  .btn-danger { background: transparent; border: 1px solid rgba(251,113,133,0.4); color: var(--rose); }
+  .btn-danger:hover { background: rgba(251,113,133,0.1); }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+  .status-err { color: var(--rose); font-size: 12px; margin-top: 8px; font-family: monospace; }
+  .status-ok { color: var(--green); font-size: 12px; }
+  .panel { border: 1px solid var(--border); background: rgba(19,24,38,0.6); border-radius: 10px; overflow: hidden; }
+  .card { padding: 20px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid rgba(35,43,61,0.5); font-size: 13px; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+  .badge { display: inline-block; font-size: 10px; font-family: monospace; padding: 3px 8px; border-radius: 20px; border: 1px solid; }
+  .badge-teal { color: var(--teal); border-color: var(--teal-dim); background: rgba(15,118,110,0.15); }
+  .badge-amber { color: var(--amber); border-color: #92400e; background: rgba(146,64,14,0.15); }
+  .badge-rose { color: var(--rose); border-color: #9f1239; background: rgba(159,18,57,0.15); }
+  .badge-green { color: var(--green); border-color: #065f46; background: rgba(6,95,70,0.15); }
+  .badge-gray { color: var(--text-dim); border-color: var(--border); }
+  .empty { text-align: center; padding: 50px 0; color: var(--text-dim); font-size: 13px; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; max-width: 640px; width: 100%; max-height: 85vh; overflow-y: auto; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .modal-header h3 { margin: 0; font-size: 15px; }
+  .modal-close { background: transparent; border: none; color: var(--text-dim); font-size: 18px; cursor: pointer; padding: 4px; }
+  .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .field-row { display: flex; flex-direction: column; gap: 4px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* Login screen */
+  #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .login-card { width: 100%; max-width: 380px; }
+  .login-eyebrow { display: flex; align-items: center; gap: 8px; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; margin-bottom: 8px; justify-content: center; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); }
+  .login-title { text-align: center; font-size: 22px; font-weight: 600; margin: 0 0 28px; }
+  .role-toggle { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 3px; margin-bottom: 16px; }
+  .role-toggle button { flex: 1; background: transparent; color: var(--text-dim); padding: 8px; border-radius: 6px; }
+  .role-toggle button.active { background: #2a3244; color: #fff; }
+
+  /* Dashboard shell */
+  #dashboard { display: none; min-height: 100vh; }
+  .app-shell { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 20px 0; display: flex; flex-direction: column; }
+  .sidebar-header { padding: 0 20px 20px; }
+  .sidebar-brand { display: flex; align-items: center; gap: 8px; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 4px; }
+  .sidebar-role { font-size: 11px; color: var(--text-dim); font-family: monospace; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: var(--text-dim); cursor: pointer; font-size: 13px; border-left: 2px solid transparent; }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+  .nav-item.active { color: var(--teal); border-left-color: var(--teal); background: rgba(45,212,191,0.05); }
+  .sidebar-footer { margin-top: auto; padding: 12px 20px 0; border-top: 1px solid var(--border); padding-top: 16px; }
+  .main-area { flex: 1; padding: 32px 40px; overflow-y: auto; max-width: 1100px; }
+  .view-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .view-title { font-size: 20px; font-weight: 600; margin: 0; }
+  .view-sub { color: var(--text-dim); font-size: 13px; margin: 4px 0 0; }
+
+  /* Mapping builder bits (reused from standalone tool) */
+  .cable-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .cable-line { height: 1px; width: 8px; background: var(--border); }
+  .transform-cell { display: flex; align-items: center; gap: 6px; justify-content: center; }
+  .transform-pill { font-size: 10px; font-family: monospace; border-radius: 20px; padding: 4px 8px; border: 1px solid var(--teal-dim); background: rgba(15,118,110,0.2); color: var(--teal); }
+  .remove-btn { background: transparent; border: none; color: #4b5468; cursor: pointer; font-size: 14px; padding: 4px; }
+  .remove-btn:hover { color: var(--rose); }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-eyebrow"><span class="dot"></span>Integration Hub</div>
+    <h1 class="login-title">Sign in</h1>
+    <div class="role-toggle">
+      <button class="active" id="roleTenantBtn" onclick="setLoginRole('tenant')">Tenant</button>
+      <button id="roleAdminBtn" onclick="setLoginRole('admin')">Admin</button>
+    </div>
+    <div class="panel card" style="display:flex;flex-direction:column;gap:12px;">
+      <div class="field-row">
+        <label>API Base URL</label>
+        <input id="loginBaseUrl" value="/api" placeholder="https://your-api.onrender.com/api">
+      </div>
+      <div class="field-row" id="tenantKeyField">
+        <label>Tenant API key</label>
+        <input id="loginTenantKey" type="password" placeholder="ih_live_...">
+      </div>
+      <div class="field-row" id="adminKeyField" style="display:none;">
+        <label>Admin key</label>
+        <input id="loginAdminKey" type="password" placeholder="admin key">
+      </div>
+      <button class="btn-primary" id="loginBtn" onclick="doLogin()">Sign in</button>
+      <div id="loginError" class="status-err" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dashboard">
+  <div class="app-shell">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-brand"><span class="dot"></span>Integration Hub</div>
+        <div class="sidebar-role" id="sidebarRole"></div>
+      </div>
+      <div id="navItems"></div>
+      <div class="sidebar-footer">
+        <button class="btn-ghost btn-sm" style="width:100%;" onclick="doLogout()">Sign out</button>
+      </div>
+    </div>
+    <div class="main-area" id="mainArea"></div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+// ───────────────────────── State & auth ─────────────────────────
+let session = JSON.parse(localStorage.getItem("ih_session") || "null");
+let loginRole = "tenant";
+let currentView = null;
+let viewCache = {}; // holds fetched lists per view for reuse (e.g. connections list for mapping builder)
+
+function $(id) { return document.getElementById(id); }
+
+function setLoginRole(role) {
+  loginRole = role;
+  $("roleTenantBtn").classList.toggle("active", role === "tenant");
+  $("roleAdminBtn").classList.toggle("active", role === "admin");
+  $("tenantKeyField").style.display = role === "tenant" ? "block" : "none";
+  $("adminKeyField").style.display = role === "admin" ? "block" : "none";
+}
+
+async function api(path, options = {}) {
+  const baseUrl = session.baseUrl.replace(/\/$/, "");
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (session.role === "admin") headers["X-Admin-Key"] = session.key;
+  else headers["Authorization"] = "Bearer " + session.key;
+  const resp = await fetch(baseUrl + path, { ...options, headers });
+  if (!resp.ok) {
+    let msg = "Request failed: " + resp.status;
+    try { const body = await resp.json(); if (body.error) msg = body.error; } catch (e) {}
+    throw new Error(msg);
+  }
+  if (resp.status === 204) return null;
+  return resp.json();
+}
+
+async function doLogin() {
+  const baseUrl = $("loginBaseUrl").value.trim() || "/api";
+  const key = loginRole === "tenant" ? $("loginTenantKey").value.trim() : $("loginAdminKey").value.trim();
+  $("loginError").style.display = "none";
+  if (!key) { showLoginError("Enter a key."); return; }
+
+  session = { role: loginRole, key, baseUrl };
+  try {
+    // Validate the key actually works before committing to it
+    if (loginRole === "tenant") await api("/tenants/me");
+    else await api("/tenants"); // admin-only list endpoint doubles as an auth check
+    localStorage.setItem("ih_session", JSON.stringify(session));
+    showDashboard();
+  } catch (err) {
+    session = null;
+    showLoginError(err.message);
+  }
+}
+
+function showLoginError(msg) {
+  $("loginError").textContent = msg;
+  $("loginError").style.display = "block";
+}
+
+function doLogout() {
+  localStorage.removeItem("ih_session");
+  session = null;
+  location.reload();
+}
+
+// ───────────────────────── Nav / view switching ─────────────────────────
+const TENANT_NAV = [
+  { id: "connections", label: "Connections", icon: "🔌" },
+  { id: "mappings", label: "Mappings", icon: "⇄" },
+  { id: "jobs", label: "Jobs", icon: "▶" },
+  { id: "usage", label: "Usage", icon: "◈" },
+];
+const ADMIN_NAV = [
+  { id: "tenants", label: "Tenants", icon: "◫" },
+  { id: "backup", label: "Backup", icon: "◐" },
+];
+
+function showDashboard() {
+  $("loginScreen").style.display = "none";
+  $("dashboard").style.display = "block";
+  $("sidebarRole").textContent = session.role === "admin" ? "Admin session" : "Tenant session";
+  const nav = session.role === "admin" ? ADMIN_NAV : TENANT_NAV;
+  $("navItems").innerHTML = nav.map(n => `<div class="nav-item" id="nav-${n.id}" onclick="switchView('${n.id}')">${n.icon}&nbsp;&nbsp;${n.label}</div>`).join("");
+  switchView(nav[0].id);
+}
+
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll(".nav-item").forEach(el => el.classList.remove("active"));
+  const navEl = $("nav-" + view);
+  if (navEl) navEl.classList.add("active");
+  const renderers = {
+    connections: renderConnectionsView, mappings: renderMappingsView,
+    jobs: renderJobsView, usage: renderUsageView,
+    tenants: renderTenantsView, backup: renderBackupView,
+  };
+  renderers[view]();
+}
+
+function viewHeader(title, sub, actionHtml) {
+  return `<div class="view-header"><div><h2 class="view-title">${title}</h2>${sub ? `<p class="view-sub">${sub}</p>` : ""}</div>${actionHtml || ""}</div>`;
+}
+
+function closeModal() { $("modalRoot").innerHTML = ""; }
+function openModal(title, bodyHtml) {
+  $("modalRoot").innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <div class="modal-header"><h3>${title}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+        <div class="modal-body">${bodyHtml}</div>
+      </div>
+    </div>`;
+}
+
+// ───────────────────────── CONNECTIONS ─────────────────────────
+async function renderConnectionsView() {
+  const main = $("mainArea");
+  main.innerHTML = viewHeader("Connections", "Credentials to NetSuite and external systems", '<button class="btn-primary" onclick="openNewConnectionModal()">+ New connection</button>') + '<div id="connList" class="panel"></div>';
+  try {
+    const conns = await api("/connections");
+    viewCache.connections = conns;
+    $("connList").innerHTML = conns.length === 0
+      ? '<div class="empty">No connections yet. Create one to get started.</div>'
+      : `<table><thead><tr><th>Label</th><th>Type</th><th>Status</th><th>Last checked</th><th></th></tr></thead><tbody>${
+          conns.map(c => `<tr>
+            <td>${c.label}</td>
+            <td class="mono">${c.connectorType}</td>
+            <td><span class="badge ${c.status === 'connected' ? 'badge-green' : c.status === 'error' ? 'badge-rose' : 'badge-gray'}">${c.status}</span></td>
+            <td class="mono" style="color:var(--text-dim);font-size:11px;">${c.lastCheckedAt ? new Date(c.lastCheckedAt).toLocaleString() : '—'}</td>
+            <td><button class="btn-ghost btn-sm" onclick="testConnection('${c.id}')">Test</button></td>
+          </tr>`).join("")
+        }</tbody></table>`;
+  } catch (err) {
+    $("connList").innerHTML = `<div class="empty status-err">${err.message}</div>`;
+  }
+}
+
+async function testConnection(id) {
+  try {
+    const result = await api(`/connections/${id}/test`, { method: "POST" });
+    alert(result.ok ? "Connection OK" : "Connection failed: " + (result.message || "unknown error"));
+    renderConnectionsView();
+  } catch (err) { alert("Error: " + err.message); }
+}
+
+function openNewConnectionModal() {
+  openModal("New connection", `
+    <div class="field-row"><label>Type</label>
+      <select id="newConnType">
+        <option value="NETSUITE">NetSuite</option>
+        <option value="SHOPIFY">Shopify</option>
+        <option value="SALESFORCE">Salesforce</option>
+        <option value="GENERIC_REST">Generic REST</option>
+      </select>
+    </div>
+    <div class="field-row"><label>Label</label><input id="newConnLabel" placeholder="e.g. Prod NetSuite"></div>
+    <div class="field-row"><label>Credentials (JSON)</label>
+      <textarea id="newConnCreds" rows="8" placeholder='{"accountId":"...","accessToken":"...","refreshToken":"...","clientId":"...","clientSecret":"..."}'></textarea>
+    </div>
+    <div id="newConnError" class="status-err" style="display:none;"></div>
+    <button class="btn-primary" onclick="createConnection()">Create connection</button>
+  `);
+}
+
+async function createConnection() {
+  const errEl = $("newConnError");
+  errEl.style.display = "none";
+  let credentials;
+  try { credentials = JSON.parse($("newConnCreds").value || "{}"); }
+  catch (e) { errEl.textContent = "Credentials must be valid JSON"; errEl.style.display = "block"; return; }
+  try {
+    await api("/connections", { method: "POST", body: JSON.stringify({
+      connectorType: $("newConnType").value, label: $("newConnLabel").value, credentials,
+    })});
+    closeModal();
+    renderConnectionsView();
+  } catch (err) { errEl.textContent = err.message; errEl.style.display = "block"; }
+}
+
+// ───────────────────────── MAPPINGS ─────────────────────────
+const TRANSFORMS = [
+  { id: "direct", label: "Direct copy" }, { id: "uppercase", label: "Uppercase" },
+  { id: "lowercase", label: "Lowercase" }, { id: "concat", label: "Combine fields" },
+  { id: "date_format", label: "Reformat date" }, { id: "static_value", label: "Fixed value" },
+  { id: "lookup_table", label: "Lookup table" },
+];
+let builderState = null;
+
+async function renderMappingsView() {
+  const main = $("mainArea");
+  main.innerHTML = viewHeader("Mappings", "Field-level sync rules between connections", '<button class="btn-primary" onclick="openMappingBuilder()">+ New mapping</button>') + '<div id="mappingList" class="panel"></div>';
+  try {
+    const mappings = await api("/mappings");
+    $("mappingList").innerHTML = mappings.length === 0
+      ? '<div class="empty">No mappings yet.</div>'
+      : `<table><thead><tr><th>Name</th><th>Source → Target</th><th>Trigger</th><th>Active</th><th></th></tr></thead><tbody>${
+          mappings.map(m => `<tr>
+            <td>${m.name}</td>
+            <td class="mono" style="font-size:11px;">${m.sourceObject} <span style="color:var(--text-dim);">→</span> ${m.targetObject}</td>
+            <td><span class="badge badge-teal">${m.triggerType}</span></td>
+            <td><span class="badge ${m.isActive ? 'badge-green' : 'badge-gray'}">${m.isActive ? 'active' : 'paused'}</span></td>
+            <td><button class="btn-ghost btn-sm" onclick="triggerSync('${m.id}')">Run now</button></td>
+          </tr>`).join("")
+        }</tbody></table>`;
+  } catch (err) {
+    $("mappingList").innerHTML = `<div class="empty status-err">${err.message}</div>`;
+  }
+}
+
+async function triggerSync(mappingId) {
+  try {
+    const result = await api("/jobs/trigger", { method: "POST", body: JSON.stringify({ mappingId }) });
+    alert("Sync queued (job " + result.jobId + ")");
+  } catch (err) { alert("Error: " + err.message); }
+}
+
+async function openMappingBuilder() {
+  const conns = viewCache.connections || await api("/connections").catch(() => []);
+  builderState = { name: "New sync", sourceConnId: "", targetConnId: "", sourceObj: "", targetObj: "", sourceFields: [], targetFields: [], rules: [{ id: "r1", sourceField: "", targetField: "", transform: "direct" }], ruleIdCounter: 2 };
+  openModal("New mapping", `
+    <div class="field-row"><label>Name</label><input id="mbName" value="${builderState.name}"></div>
+    <div class="row2">
+      <div class="field-row"><label>Source connection</label><select id="mbSourceConn" onchange="mbConnChange('source')"><option value="">Choose</option>${conns.map(c => `<option value="${c.id}">${c.label}</option>`).join("")}</select></div>
+      <div class="field-row"><label>Source object</label><select id="mbSourceObj" onchange="mbObjChange('source')" disabled><option value="">Choose connection first</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field-row"><label>Target connection</label><select id="mbTargetConn" onchange="mbConnChange('target')"><option value="">Choose</option>${conns.map(c => `<option value="${c.id}">${c.label}</option>`).join("")}</select></div>
+      <div class="field-row"><label>Target object</label><select id="mbTargetObj" onchange="mbObjChange('target')" disabled><option value="">Choose connection first</option></select></div>
+    </div>
+    <div id="mbRulesSection" style="display:none;">
+      <label style="margin-top:8px;">Field mapping</label>
+      <table><thead><tr><th>Source</th><th style="width:100px;text-align:center;">Transform</th><th>Target</th><th></th></tr></thead><tbody id="mbRulesBody"></tbody></table>
+      <button class="btn-ghost btn-sm" style="margin-top:8px;" onclick="mbAddRule()">+ Add row</button>
+    </div>
+    <div id="mbError" class="status-err" style="display:none;"></div>
+    <button class="btn-primary" onclick="saveMapping()">Save mapping</button>
+  `);
+}
+
+async function mbConnChange(which) {
+  const connId = $(which === "source" ? "mbSourceConn" : "mbTargetConn").value;
+  const objSel = $(which === "source" ? "mbSourceObj" : "mbTargetObj");
+  if (which === "source") builderState.sourceConnId = connId; else builderState.targetConnId = connId;
+  objSel.innerHTML = '<option value="">Loading...</option>';
+  objSel.disabled = true;
+  if (!connId) { objSel.innerHTML = '<option value="">Choose connection first</option>'; return; }
+  try {
+    const types = await api(`/connections/${connId}/objects`);
+    objSel.innerHTML = '<option value="">Choose object</option>' + types.map(t => `<option value="${t}">${t}</option>`).join("");
+    objSel.disabled = false;
+  } catch (e) { objSel.innerHTML = '<option value="">Failed to load</option>'; }
+}
+
+async function mbObjChange(which) {
+  const connId = which === "source" ? builderState.sourceConnId : builderState.targetConnId;
+  const objType = $(which === "source" ? "mbSourceObj" : "mbTargetObj").value;
+  if (which === "source") builderState.sourceObj = objType; else builderState.targetObj = objType;
+  try {
+    const fields = await api(`/connections/${connId}/objects/${objType}/fields`);
+    if (which === "source") builderState.sourceFields = fields; else builderState.targetFields = fields;
+  } catch (e) {}
+  if (builderState.sourceObj && builderState.targetObj) {
+    $("mbRulesSection").style.display = "block";
+    mbRenderRules();
+  }
+}
+
+function mbRenderRules() {
+  $("mbRulesBody").innerHTML = builderState.rules.map(r => `
+    <tr>
+      <td>${mbFieldSelect(r.id, "sourceField", builderState.sourceFields, r.sourceField)}</td>
+      <td><div class="transform-cell"><span class="cable-dot" style="background:var(--teal);"></span><span class="cable-line"></span>
+        <select class="transform-pill" onchange="mbUpdateRule('${r.id}','transform',this.value)">${TRANSFORMS.map(t => `<option value="${t.id}" ${t.id === r.transform ? "selected" : ""}>${t.label}</option>`).join("")}</select>
+        <span class="cable-line"></span><span class="cable-dot" style="background:var(--amber);"></span></div></td>
+      <td>${mbFieldSelect(r.id, "targetField", builderState.targetFields, r.targetField)}</td>
+      <td><button class="remove-btn" onclick="mbRemoveRule('${r.id}')">✕</button></td>
+    </tr>`).join("");
+}
+function mbFieldSelect(ruleId, key, fields, value) {
+  return `<select onchange="mbUpdateRule('${ruleId}','${key}',this.value)"><option value="">${fields.length === 0 ? "No fields" : "Choose"}</option>${fields.map(f => `<option value="${f.name}" ${f.name === value ? "selected" : ""}>${f.name}</option>`).join("")}</select>`;
+}
+function mbUpdateRule(id, key, val) { const r = builderState.rules.find(x => x.id === id); if (r) r[key] = val; mbRenderRules(); }
+function mbAddRule() { builderState.rules.push({ id: "r" + (builderState.ruleIdCounter++), sourceField: "", targetField: "", transform: "direct" }); mbRenderRules(); }
+function mbRemoveRule(id) { builderState.rules = builderState.rules.filter(r => r.id !== id); mbRenderRules(); }
+
+async function saveMapping() {
+  const errEl = $("mbError");
+  errEl.style.display = "none";
+  try {
+    await api("/mappings", { method: "POST", body: JSON.stringify({
+      name: $("mbName").value, sourceConnectionId: builderState.sourceConnId, targetConnectionId: builderState.targetConnId,
+      sourceObject: builderState.sourceObj, targetObject: builderState.targetObj,
+      fieldMappings: builderState.rules.filter(r => r.targetField).map(({ id, ...r }) => r),
+      triggerType: "poll", pollIntervalSec: 300,
+    })});
+    closeModal();
+    renderMappingsView();
+  } catch (err) { errEl.textContent = err.message; errEl.style.display = "block"; }
+}
+
+// ───────────────────────── JOBS ─────────────────────────
+async function renderJobsView() {
+  const main = $("mainArea");
+  main.innerHTML = viewHeader("Jobs", "Recent sync run history") + '<div id="jobList" class="panel"></div>';
+  try {
+    const jobs = await api("/jobs");
+    $("jobList").innerHTML = jobs.length === 0 ? '<div class="empty">No sync jobs yet.</div>' :
+      `<table><thead><tr><th>Mapping</th><th>Status</th><th>Records</th><th>Started</th></tr></thead><tbody>${
+        jobs.map(j => `<tr>
+          <td>${j.mapping?.name || j.mappingId}</td>
+          <td><span class="badge ${j.status === 'SUCCESS' ? 'badge-green' : j.status === 'FAILED' ? 'badge-rose' : 'badge-amber'}">${j.status}</span></td>
+          <td class="mono">${j.recordsRead} read / ${j.recordsWritten} written</td>
+          <td class="mono" style="font-size:11px;color:var(--text-dim);">${new Date(j.createdAt).toLocaleString()}</td>
+        </tr>`).join("")
+      }</tbody></table>`;
+  } catch (err) { $("jobList").innerHTML = `<div class="empty status-err">${err.message}</div>`; }
+}
+
+// ───────────────────────── USAGE ─────────────────────────
+async function renderUsageView() {
+  const main = $("mainArea");
+  main.innerHTML = viewHeader("Usage", "This month's sync quota") + '<div id="usageBox" class="panel card"></div>';
+  try {
+    const u = await api("/tenants/me/usage");
+    const pct = u.quota === -1 ? 0 : Math.min(100, Math.round((u.used / u.quota) * 100));
+    $("usageBox").innerHTML = `
+      <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px;">Plan: <span class="mono" style="color:var(--teal);">${u.plan}</span></div>
+      <div style="font-size:28px;font-weight:600;">${u.used} <span style="font-size:14px;color:var(--text-dim);font-weight:400;">/ ${u.quota === -1 ? '∞' : u.quota} syncs used</span></div>
+      ${u.quota !== -1 ? `<div style="background:var(--bg);border-radius:6px;height:8px;margin-top:14px;overflow:hidden;"><div style="background:var(--teal);height:100%;width:${pct}%;"></div></div>` : ""}
+    `;
+  } catch (err) { $("usageBox").innerHTML = `<div class="status-err">${err.message}</div>`; }
+}
+
+// ───────────────────────── ADMIN: TENANTS ─────────────────────────
+async function renderTenantsView() {
+  const main = $("mainArea");
+  main.innerHTML = viewHeader("Tenants", "All customers on this platform", '<button class="btn-primary" onclick="openNewTenantModal()">+ New tenant</button>') + '<div id="tenantList" class="panel"></div>';
+  try {
+    const tenants = await api("/tenants");
+    $("tenantList").innerHTML = tenants.length === 0 ? '<div class="empty">No tenants yet.</div>' :
+      `<table><thead><tr><th>Name</th><th>Plan</th><th>Created</th><th></th></tr></thead><tbody>${
+        tenants.map(t => `<tr>
+          <td>${t.name}</td>
+          <td><span class="badge badge-teal">${t.plan?.name || t.planId}</span></td>
+          <td class="mono" style="font-size:11px;color:var(--text-dim);">${new Date(t.createdAt).toLocaleDateString()}</td>
+          <td><button class="btn-ghost btn-sm" onclick="bootstrapKey('${t.id}')">Issue API key</button></td>
+        </tr>`).join("")
+      }</tbody></table>`;
+  } catch (err) { $("tenantList").innerHTML = `<div class="empty status-err">${err.message}</div>`; }
+}
+
+function openNewTenantModal() {
+  openModal("New tenant", `
+    <div class="field-row"><label>Name</label><input id="newTenantName" placeholder="Customer name"></div>
+    <div class="field-row"><label>Plan</label><select id="newTenantPlan"><option value="free">Free</option><option value="pro" selected>Pro</option><option value="enterprise">Enterprise</option></select></div>
+    <div id="newTenantError" class="status-err" style="display:none;"></div>
+    <button class="btn-primary" onclick="createTenant()">Create tenant</button>
+  `);
+}
+async function createTenant() {
+  const errEl = $("newTenantError");
+  errEl.style.display = "none";
+  try {
+    const tenant = await api("/tenants", { method: "POST", body: JSON.stringify({ name: $("newTenantName").value, planId: $("newTenantPlan").value }) });
+    closeModal();
+    renderTenantsView();
+    setTimeout(() => bootstrapKey(tenant.id), 300);
+  } catch (err) { errEl.textContent = err.message; errEl.style.display = "block"; }
+}
+async function bootstrapKey(tenantId) {
+  try {
+    const result = await api(`/api-keys/tenants/${tenantId}/bootstrap`, { method: "POST" });
+    openModal("API key issued", `
+      <p style="font-size:13px;color:var(--text-dim);">Shown once — copy it now, it can't be retrieved again:</p>
+      <input readonly value="${result.apiKey}" class="mono" onclick="this.select()">
+    `);
+  } catch (err) { alert("Error: " + err.message); }
+}
+
+// ───────────────────────── ADMIN: BACKUP ─────────────────────────
+async function renderBackupView() {
+  const main = $("mainArea");
+  main.innerHTML = viewHeader("Backup configuration", "Automatic database backups") + '<div id="backupBox" class="panel card"></div><div style="height:16px;"></div><div id="backupHistory" class="panel"></div>';
+  try {
+    const cfg = await api("/admin/backup-config");
+    $("backupBox").innerHTML = `
+      <div class="row2" style="margin-bottom:12px;">
+        <div class="field-row"><label>Enabled</label><select id="bkEnabled"><option value="true" ${cfg.enabled ? "selected" : ""}>Yes</option><option value="false" ${!cfg.enabled ? "selected" : ""}>No</option></select></div>
+        <div class="field-row"><label>Cron schedule</label><input id="bkCron" value="${cfg.cronSchedule}"></div>
+      </div>
+      <div class="row2" style="margin-bottom:12px;">
+        <div class="field-row"><label>Retention (days)</label><input id="bkRetention" type="number" value="${cfg.retentionDays}"></div>
+        <div class="field-row"><label>Storage</label><select id="bkStorage"><option value="s3" ${cfg.storageProvider === 's3' ? 'selected' : ''}>S3</option><option value="local" ${cfg.storageProvider === 'local' ? 'selected' : ''}>Local</option></select></div>
+      </div>
+      <div class="field-row" style="margin-bottom:12px;"><label>S3 bucket</label><input id="bkBucket" value="${cfg.s3Bucket || ''}"></div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Last run: <span class="mono">${cfg.lastRunAt ? new Date(cfg.lastRunAt).toLocaleString() : 'never'}</span> · S3 credentials: <span class="mono">${cfg.s3CredentialsSet ? 'set' : 'using env fallback'}</span></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-primary" onclick="saveBackupConfig()">Save</button>
+        <button class="btn-ghost" onclick="runBackupNow()">Run now</button>
+      </div>
+      <div id="backupError" class="status-err" style="display:none;"></div>
+    `;
+    const history = await api("/admin/backup-config/history");
+    $("backupHistory").innerHTML = history.length === 0 ? '<div class="empty">No backup runs yet.</div>' :
+      `<table><thead><tr><th>Trigger</th><th>Status</th><th>Size</th><th>Started</th></tr></thead><tbody>${
+        history.map(h => `<tr>
+          <td class="mono">${h.trigger}</td>
+          <td><span class="badge ${h.status === 'success' ? 'badge-green' : h.status === 'failed' ? 'badge-rose' : 'badge-amber'}">${h.status}</span></td>
+          <td class="mono">${h.sizeBytes ? (h.sizeBytes / 1024).toFixed(1) + ' KB' : '—'}</td>
+          <td class="mono" style="font-size:11px;color:var(--text-dim);">${new Date(h.startedAt).toLocaleString()}</td>
+        </tr>`).join("")
+      }</tbody></table>`;
+  } catch (err) { $("backupBox").innerHTML = `<div class="status-err">${err.message}</div>`; }
+}
+async function saveBackupConfig() {
+  const errEl = $("backupError");
+  errEl.style.display = "none";
+  try {
+    await api("/admin/backup-config", { method: "PATCH", body: JSON.stringify({
+      enabled: $("bkEnabled").value === "true", cronSchedule: $("bkCron").value,
+      retentionDays: Number($("bkRetention").value), storageProvider: $("bkStorage").value,
+      s3Bucket: $("bkBucket").value || undefined,
+    })});
+    renderBackupView();
+  } catch (err) { errEl.textContent = err.message; errEl.style.display = "block"; }
+}
+async function runBackupNow() {
+  try { await api("/admin/backup-config/run-now", { method: "POST" }); alert("Backup started"); renderBackupView(); }
+  catch (err) { alert("Error: " + err.message); }
+}
+
+// ───────────────────────── Boot ─────────────────────────
+if (session && session.key) { showDashboard(); }
+</script>
+</body>
+</html>

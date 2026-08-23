@@ -28,6 +28,10 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 // available at /mapping-ui/ once deployed. See public/mapping-ui/index.html.
 app.use("/mapping-ui", express.static(path.join(__dirname, "../public/mapping-ui")));
 
+// Full admin dashboard — login screen (tenant key or admin key) + separate
+// tenant/admin views. See public/admin/index.html.
+app.use("/admin", express.static(path.join(__dirname, "../public/admin")));
+
 // IMPORTANT: mounted with express.raw() and BEFORE the global express.json()
 // below — HMAC signature verification needs the exact raw request bytes.
 // If this router were mounted after express.json(), req.body would already
