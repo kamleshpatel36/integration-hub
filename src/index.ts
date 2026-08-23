@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import path from "path";
 import pinoHttp from "pino-http";
 import { logger } from "./config/logger";
 import tenantsRouter from "./api/routes/tenants";
@@ -21,6 +22,11 @@ app.use(cors());
 app.use(pinoHttp({ logger }));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
+
+// Standalone mapping UI — plain HTML/CSS/JS, no build step, served directly
+// from this API so it's same-origin (no CORS complications) and permanently
+// available at /mapping-ui/ once deployed. See public/mapping-ui/index.html.
+app.use("/mapping-ui", express.static(path.join(__dirname, "../public/mapping-ui")));
 
 // IMPORTANT: mounted with express.raw() and BEFORE the global express.json()
 // below — HMAC signature verification needs the exact raw request bytes.
