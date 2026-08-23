@@ -16,9 +16,14 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+RUN chmod +x docker-entrypoint.sh
 RUN npx prisma generate
 RUN npm run build
 
-# Overridden per-service by render.yaml's `dockerCommand`; this default is
-# only used if a service is run without an override (e.g. local `docker run`).
-CMD ["node", "dist/index.js"]
+# Default CMD runs migrations then starts the API — this is what the
+# integration-hub-api service uses when its "Docker Command" field is left
+# BLANK in Render. worker/scheduler/backup services override this with a
+# simple single command (e.g. "node dist/queue/worker.js") via render.yaml's
+# `dockerCommand` — those are plain single commands with no `&&`, so they
+# don't hit the compound-command parsing issue this script works around.
+CMD ["./docker-entrypoint.sh"]

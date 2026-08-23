@@ -52,7 +52,11 @@ services:
     # migrate deploy runs at container START (not Docker build time) because
     # DATABASE_URL isn't reliably reachable during the build step — this way
     # every deploy applies pending migrations before the API starts serving.
-    dockerCommand: sh -c "npx prisma migrate deploy && node dist/index.js"
+    # No dockerCommand override — the Dockerfile's default CMD
+    # (docker-entrypoint.sh) already runs migrations then starts the API.
+    # A compound `sh -c "a && b"` string typed directly into this field ran
+    # into a parsing issue on Render where `&&` wasn't treated as a shell
+    # operator, so that logic now lives in the image instead.
     envVars:
       - fromGroup: integration-hub-shared
       - key: DATABASE_URL

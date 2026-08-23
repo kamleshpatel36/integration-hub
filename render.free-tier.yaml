@@ -54,7 +54,7 @@ services:
     name: integration-hub-api
     runtime: docker
     plan: free
-    dockerCommand: sh -c "npx prisma migrate deploy && node dist/index.js"
+    # No dockerCommand override — see render.yaml for why.
     envVars:
       - fromGroup: integration-hub-shared
       - key: DATABASE_URL
