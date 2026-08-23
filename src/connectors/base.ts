@@ -9,6 +9,10 @@ export interface FieldDescriptor {
   name: string;
   label: string;
   type: "string" | "number" | "date" | "boolean" | "reference";
+  /** True for account-specific custom fields (e.g. NetSuite's custentity_/custbody_/
+   *  custcol_/custitem_/custrecord_ prefixed fields) as opposed to fields every
+   *  account of that record type has. Lets the mapping UI group them separately. */
+  isCustom?: boolean;
 }
 
 export interface ConnectorConfig {

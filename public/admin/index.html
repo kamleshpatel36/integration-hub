@@ -65,6 +65,41 @@
     padding: 1px 5px; font-family: monospace; color: var(--amber); display: inline-block; margin-top: 3px;
   }
 
+  /* Drag-and-drop field mapper */
+  .dnd-mapper { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
+  .dnd-col-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 8px; }
+  .dnd-field-list { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; padding-right: 2px; }
+  .dnd-group-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #4b5468; margin: 8px 0 2px; }
+  .dnd-group-label:first-child { margin-top: 0; }
+  .field-pill {
+    display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg); font-family: monospace; font-size: 12px;
+    cursor: grab; user-select: none;
+  }
+  .field-pill:active { cursor: grabbing; }
+  .field-pill.source-pill { border-left: 2px solid var(--teal); }
+  .field-pill.source-pill.custom { border-left-color: var(--violet); }
+  .field-pill .type-tag { margin-left: auto; font-size: 9px; color: var(--text-dim); text-transform: uppercase; }
+
+  .target-drop {
+    border: 1px dashed var(--border); border-radius: 8px; padding: 10px; font-size: 12px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .target-drop.drag-over { border-color: var(--teal); background: rgba(45,212,191,0.06); }
+  .target-drop.mapped { border-style: solid; background: rgba(255,255,255,0.02); }
+  .target-drop-header { display: flex; align-items: center; justify-content: space-between; font-family: monospace; }
+  .target-drop-empty { color: var(--text-dim); font-size: 11px; padding: 4px 0; }
+  .target-mapping-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; color: var(--text-dim); }
+  .target-mapping-actions { display: flex; gap: 4px; margin-left: auto; }
+  .icon-btn { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; padding: 2px 4px; }
+  .icon-btn:hover { color: var(--teal); }
+  .icon-btn.danger:hover { color: var(--rose); }
+  .op-config { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+  .op-config select, .op-config input, .op-config textarea { font-size: 11px; padding: 6px 8px; }
+  .op-config textarea { font-family: monospace; min-height: 60px; }
+  .lookup-row { display: flex; gap: 4px; align-items: center; }
+  .op-hint { font-size: 10px; color: var(--text-dim); line-height: 1.4; }
+
   /* Login screen */
   #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
   .login-card { width: 100%; max-width: 380px; }
@@ -250,10 +285,11 @@ function viewHeader(title, sub, actionHtml) {
 }
 
 function closeModal() { $("modalRoot").innerHTML = ""; }
-function openModal(title, bodyHtml) {
+function openModal(title, bodyHtml, opts) {
+  const wideStyle = (opts && opts.wide) ? "max-width:920px;" : "";
   $("modalRoot").innerHTML = `
     <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-      <div class="modal">
+      <div class="modal" style="${wideStyle}">
         <div class="modal-header"><h3>${title}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
         <div class="modal-body">${bodyHtml}</div>
       </div>
@@ -335,7 +371,52 @@ function renderCredFields() {
 
   if (type === "NETSUITE") {
     container.innerHTML = `
+      <div class="field-row"><label>Auth type</label>
+        <select id="cf_authType" onchange="renderNetsuiteAuthFields()">
+          <option value="oauth2">OAuth 2.0</option>
+          <option value="oauth1">Token-Based Authentication (OAuth 1.0a)</option>
+        </select>
+      </div>
       <div class="field-row"><label>Account ID</label><input id="cf_accountId" placeholder="e.g. 1234567 or TSTDRV1234567"></div>
+      <div id="netsuiteAuthFields"></div>`;
+    renderNetsuiteAuthFields();
+  } else {
+    container.innerHTML = `
+      <div class="field-row"><label>Base URL</label><input id="cf_baseUrl" placeholder="https://api.example.com"></div>
+      <div class="row2">
+        <div class="field-row"><label>Auth Header Name</label><input id="cf_authHeader" value="Authorization"></div>
+        <div class="field-row"><label>Auth Header Value</label><input id="cf_authValue" type="password" placeholder="Bearer xxx or raw API key"></div>
+      </div>
+      <div class="field-row"><label>Known object types <span style="color:var(--text-dim);font-weight:400;">(comma-separated — this connector can't auto-discover them yet)</span></label><input id="cf_knownObjectTypes" placeholder="customer, order, product"></div>`;
+  }
+}
+
+function renderNetsuiteAuthFields() {
+  const authType = $("cf_authType").value;
+  const container = $("netsuiteAuthFields");
+
+  if (authType === "oauth1") {
+    container.innerHTML = `
+      <div class="row2">
+        <div class="field-row"><label>Consumer Key</label><input id="cf_consumerKey" placeholder="from Integration record"></div>
+        <div class="field-row"><label>Consumer Secret</label><input id="cf_consumerSecret" type="password" placeholder="from Integration record"></div>
+      </div>
+      <div class="row2">
+        <div class="field-row"><label>Token ID</label><input id="cf_tokenId" placeholder="from Access Token"></div>
+        <div class="field-row"><label>Token Secret</label><input id="cf_tokenSecret" type="password" placeholder="from Access Token"></div>
+      </div>
+      <details class="setup-steps">
+        <summary>How to get these values from NetSuite ▾</summary>
+        <ol>
+          <li><b>Enable the feature.</b> Setup → Company → Enable Features → SuiteCloud tab → check <b>Token-Based Authentication</b> → Save.</li>
+          <li><b>Create an Integration record.</b> Setup → Integration → Manage Integrations → New. Name it, under Authentication check <b>Token-Based Authentication</b> (not Authorization Code Grant — that's the OAuth 2.0 option). Save — NetSuite shows <b>Consumer Key</b> and <b>Consumer Secret</b> exactly once. Copy both now.</li>
+          <li><b>Assign permissions.</b> Setup → Users/Roles → Manage Roles — the role you'll issue a token under needs <b>REST Web Services</b> permission plus view/edit access to whatever record types you plan to sync.</li>
+          <li><b>Issue an Access Token.</b> Setup → Users/Roles → Access Tokens → New. Pick the Integration record from step 2, the user, and the role from step 3. Save — NetSuite shows <b>Token ID</b> and <b>Token Secret</b> exactly once. Copy both now.</li>
+        </ol>
+        <p style="margin:10px 0 0;color:var(--text-dim);">No refresh step needed — unlike OAuth 2.0, these four values sign every request directly (HMAC-SHA256) and don't expire on their own. They stay valid until you revoke the Access Token in NetSuite.</p>
+      </details>`;
+  } else {
+    container.innerHTML = `
       <div class="row2">
         <div class="field-row"><label>Client ID</label><input id="cf_clientId" placeholder="from Integration record"></div>
         <div class="field-row"><label>Client Secret</label><input id="cf_clientSecret" type="password" placeholder="from Integration record"></div>
@@ -348,7 +429,7 @@ function renderCredFields() {
       <details class="setup-steps">
         <summary>How to get these values from NetSuite ▾</summary>
         <ol>
-          <li><b>Enable the feature.</b> Setup → Company → Enable Features → SuiteCloud tab → check <b>OAuth 2.0</b> (and <b>Token-Based Authentication</b> if not already on) → Save.</li>
+          <li><b>Enable the feature.</b> Setup → Company → Enable Features → SuiteCloud tab → check <b>OAuth 2.0</b> → Save.</li>
           <li><b>Create an Integration record.</b> Setup → Integration → Manage Integrations → New. Name it, under Authentication check <b>Authorization Code Grant</b> with a Redirect URI you control (any URL that can show you the <code>?code=</code> in its address bar works, even a scratch page). Save — NetSuite shows <b>Client ID</b> and <b>Client Secret</b> exactly once. Copy both now.</li>
           <li><b>Assign permissions.</b> Setup → Users/Roles → Manage Roles — make sure the role you'll authorize with has <b>REST Web Services</b> permission plus view/edit access to whatever record types you plan to sync (Customer, Sales Order, etc.).</li>
           <li><b>Authorize once, in a browser.</b> Visit:<br>
@@ -359,19 +440,11 @@ function renderCredFields() {
             The response's <code>refresh_token</code> field is what goes in the field above — it's long-lived; this connector auto-refreshes the access token from it on every use, so Access Token/Token Expires At above can stay blank.</li>
         </ol>
       </details>`;
-  } else {
-    container.innerHTML = `
-      <div class="field-row"><label>Base URL</label><input id="cf_baseUrl" placeholder="https://api.example.com"></div>
-      <div class="row2">
-        <div class="field-row"><label>Auth Header Name</label><input id="cf_authHeader" value="Authorization"></div>
-        <div class="field-row"><label>Auth Header Value</label><input id="cf_authValue" type="password" placeholder="Bearer xxx or raw API key"></div>
-      </div>
-      <div class="field-row"><label>Known object types <span style="color:var(--text-dim);font-weight:400;">(comma-separated — this connector can't auto-discover them yet)</span></label><input id="cf_knownObjectTypes" placeholder="customer, order, product"></div>`;
   }
 }
 
 function jsonPlaceholderFor(type) {
-  if (type === "NETSUITE") return '{"accountId":"...","clientId":"...","clientSecret":"...","refreshToken":"..."}';
+  if (type === "NETSUITE") return '{"authType":"oauth2","accountId":"...","clientId":"...","clientSecret":"...","refreshToken":"..."}';
   return '{"baseUrl":"https://...","authHeader":"Authorization","authValue":"Bearer ...","knownObjectTypes":["customer"]}';
 }
 
@@ -381,8 +454,27 @@ function buildCredentialsFromForm() {
     return JSON.parse($("newConnCreds").value || "{}");
   }
   if (type === "NETSUITE") {
+    const authType = $("cf_authType").value;
+    const accountId = $("cf_accountId").value.trim();
+    if (!accountId) throw new Error("Missing required field: accountId");
+
+    if (authType === "oauth1") {
+      const creds = {
+        authType: "oauth1",
+        accountId,
+        consumerKey: $("cf_consumerKey").value.trim(),
+        consumerSecret: $("cf_consumerSecret").value.trim(),
+        tokenId: $("cf_tokenId").value.trim(),
+        tokenSecret: $("cf_tokenSecret").value.trim(),
+      };
+      const missing = ["consumerKey", "consumerSecret", "tokenId", "tokenSecret"].filter(k => !creds[k]);
+      if (missing.length) throw new Error("Missing required field(s): " + missing.join(", "));
+      return creds;
+    }
+
     const creds = {
-      accountId: $("cf_accountId").value.trim(),
+      authType: "oauth2",
+      accountId,
       clientId: $("cf_clientId").value.trim(),
       clientSecret: $("cf_clientSecret").value.trim(),
       refreshToken: $("cf_refreshToken").value.trim(),
@@ -391,7 +483,7 @@ function buildCredentialsFromForm() {
     const tokenExpiresAt = $("cf_tokenExpiresAt").value.trim();
     if (accessToken) creds.accessToken = accessToken;
     if (tokenExpiresAt) creds.tokenExpiresAt = tokenExpiresAt;
-    const missing = ["accountId", "clientId", "clientSecret", "refreshToken"].filter(k => !creds[k]);
+    const missing = ["clientId", "clientSecret", "refreshToken"].filter(k => !creds[k]);
     if (missing.length) throw new Error("Missing required field(s): " + missing.join(", "));
     return creds;
   }
@@ -423,7 +515,7 @@ const TRANSFORMS = [
   { id: "direct", label: "Direct copy" }, { id: "uppercase", label: "Uppercase" },
   { id: "lowercase", label: "Lowercase" }, { id: "concat", label: "Combine fields" },
   { id: "date_format", label: "Reformat date" }, { id: "static_value", label: "Fixed value" },
-  { id: "lookup_table", label: "Lookup table" },
+  { id: "lookup_table", label: "Lookup table" }, { id: "custom_js", label: "Custom expression" },
 ];
 let builderState = null;
 
@@ -457,25 +549,33 @@ async function triggerSync(mappingId) {
 
 async function openMappingBuilder() {
   const conns = viewCache.connections || await api("/connections").catch(() => []);
-  builderState = { name: "New sync", sourceConnId: "", targetConnId: "", sourceObj: "", targetObj: "", sourceFields: [], targetFields: [], rules: [{ id: "r1", sourceField: "", targetField: "", transform: "direct" }], ruleIdCounter: 2 };
+  builderState = { name: "New sync", sourceConnId: "", targetConnId: "", sourceObj: "", targetObj: "", sourceFields: [], targetFields: [], rules: [], openConfigFor: null };
   openModal("New mapping", `
     <div class="field-row"><label>Name</label><input id="mbName" value="${builderState.name}"></div>
     <div class="row2">
-      <div class="field-row"><label>Source connection</label><select id="mbSourceConn" onchange="mbConnChange('source')"><option value="">Choose</option>${conns.map(c => `<option value="${c.id}">${c.label}</option>`).join("")}</select></div>
+      <div class="field-row"><label>Source connection</label><select id="mbSourceConn" onchange="mbConnChange('source')"><option value="">Choose</option>${conns.map(c => `<option value="${c.id}" ${c.status !== 'connected' ? 'disabled' : ''}>${c.label}${c.status !== 'connected' ? ' (' + c.status + ')' : ''}</option>`).join("")}</select></div>
       <div class="field-row"><label>Source object</label><select id="mbSourceObj" onchange="mbObjChange('source')" disabled><option value="">Choose connection first</option></select></div>
     </div>
     <div class="row2">
-      <div class="field-row"><label>Target connection</label><select id="mbTargetConn" onchange="mbConnChange('target')"><option value="">Choose</option>${conns.map(c => `<option value="${c.id}">${c.label}</option>`).join("")}</select></div>
+      <div class="field-row"><label>Target connection</label><select id="mbTargetConn" onchange="mbConnChange('target')"><option value="">Choose</option>${conns.map(c => `<option value="${c.id}" ${c.status !== 'connected' ? 'disabled' : ''}>${c.label}${c.status !== 'connected' ? ' (' + c.status + ')' : ''}</option>`).join("")}</select></div>
       <div class="field-row"><label>Target object</label><select id="mbTargetObj" onchange="mbObjChange('target')" disabled><option value="">Choose connection first</option></select></div>
     </div>
     <div id="mbRulesSection" style="display:none;">
-      <label style="margin-top:8px;">Field mapping</label>
-      <table><thead><tr><th>Source</th><th style="width:100px;text-align:center;">Transform</th><th>Target</th><th></th></tr></thead><tbody id="mbRulesBody"></tbody></table>
-      <button class="btn-ghost btn-sm" style="margin-top:8px;" onclick="mbAddRule()">+ Add row</button>
+      <label style="margin-top:4px;">Field mapping <span style="color:var(--text-dim);font-weight:400;">— drag a source field onto a target field, then use ⚙ to change how the value is transformed</span></label>
+      <div class="dnd-mapper">
+        <div>
+          <div class="dnd-col-title">Source fields</div>
+          <div id="mbSourceFieldList" class="dnd-field-list"></div>
+        </div>
+        <div>
+          <div class="dnd-col-title">Target fields</div>
+          <div id="mbTargetFieldList" class="dnd-field-list"></div>
+        </div>
+      </div>
     </div>
     <div id="mbError" class="status-err" style="display:none;"></div>
-    <button class="btn-primary" onclick="saveMapping()">Save mapping</button>
-  `);
+    <button class="btn-primary" onclick="saveMapping()" style="margin-top:12px;">Save mapping</button>
+  `, { wide: true });
 }
 
 async function mbConnChange(which) {
@@ -497,32 +597,179 @@ async function mbObjChange(which) {
   const objType = $(which === "source" ? "mbSourceObj" : "mbTargetObj").value;
   if (which === "source") builderState.sourceObj = objType; else builderState.targetObj = objType;
   try {
+    // Field lists are fetched live from the connected account (see
+    // GET /connections/:id/objects/:type/fields) — this includes custom
+    // fields for NetSuite, flagged via isCustom and grouped separately below.
     const fields = await api(`/connections/${connId}/objects/${objType}/fields`);
     if (which === "source") builderState.sourceFields = fields; else builderState.targetFields = fields;
   } catch (e) {}
   if (builderState.sourceObj && builderState.targetObj) {
     $("mbRulesSection").style.display = "block";
-    mbRenderRules();
+    mbRenderSourceFields();
+    mbRenderTargetFields();
   }
 }
 
-function mbRenderRules() {
-  $("mbRulesBody").innerHTML = builderState.rules.map(r => `
-    <tr>
-      <td>${mbFieldSelect(r.id, "sourceField", builderState.sourceFields, r.sourceField)}</td>
-      <td><div class="transform-cell"><span class="cable-dot" style="background:var(--teal);"></span><span class="cable-line"></span>
-        <select class="transform-pill" onchange="mbUpdateRule('${r.id}','transform',this.value)">${TRANSFORMS.map(t => `<option value="${t.id}" ${t.id === r.transform ? "selected" : ""}>${t.label}</option>`).join("")}</select>
-        <span class="cable-line"></span><span class="cable-dot" style="background:var(--amber);"></span></div></td>
-      <td>${mbFieldSelect(r.id, "targetField", builderState.targetFields, r.targetField)}</td>
-      <td><button class="remove-btn" onclick="mbRemoveRule('${r.id}')">✕</button></td>
-    </tr>`).join("");
+function findRule(targetField) { return builderState.rules.find(r => r.targetField === targetField); }
+
+function mbRenderSourceFields() {
+  const standard = builderState.sourceFields.filter(f => !f.isCustom);
+  const custom = builderState.sourceFields.filter(f => f.isCustom);
+  let html = "";
+  if (standard.length) html += `<div class="dnd-group-label">Standard</div>` + standard.map(mbSourcePillHtml).join("");
+  if (custom.length) html += `<div class="dnd-group-label">Custom</div>` + custom.map(mbSourcePillHtml).join("");
+  if (!standard.length && !custom.length) html = `<div class="target-drop-empty">No fields loaded for this object type</div>`;
+  $("mbSourceFieldList").innerHTML = html;
 }
-function mbFieldSelect(ruleId, key, fields, value) {
-  return `<select onchange="mbUpdateRule('${ruleId}','${key}',this.value)"><option value="">${fields.length === 0 ? "No fields" : "Choose"}</option>${fields.map(f => `<option value="${f.name}" ${f.name === value ? "selected" : ""}>${f.name}</option>`).join("")}</select>`;
+function mbSourcePillHtml(f) {
+  return `<div class="field-pill source-pill ${f.isCustom ? "custom" : ""}" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${f.name}')">
+    <span>${f.name}</span><span class="type-tag">${f.type}</span>
+  </div>`;
 }
-function mbUpdateRule(id, key, val) { const r = builderState.rules.find(x => x.id === id); if (r) r[key] = val; mbRenderRules(); }
-function mbAddRule() { builderState.rules.push({ id: "r" + (builderState.ruleIdCounter++), sourceField: "", targetField: "", transform: "direct" }); mbRenderRules(); }
-function mbRemoveRule(id) { builderState.rules = builderState.rules.filter(r => r.id !== id); mbRenderRules(); }
+
+function mbRenderTargetFields() {
+  $("mbTargetFieldList").innerHTML = builderState.targetFields.map(f => {
+    const rule = findRule(f.name);
+    const isOpen = builderState.openConfigFor === f.name;
+    return `
+      <div class="target-drop ${rule ? "mapped" : ""}" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="mbDrop(event,'${f.name}')">
+        <div class="target-drop-header">
+          <span class="mono">${f.name}${f.isCustom ? ' <span style="color:var(--violet);font-size:9px;">custom</span>' : ""}</span>
+        </div>
+        ${rule ? `
+          <div class="target-mapping-row">
+            <span class="cable-dot" style="background:var(--teal);"></span>
+            <span class="mono" style="color:var(--text);">${rule.sourceField || (rule.transform === "concat" ? (rule.sourceFields || []).join("+") || "(pick fields)" : rule.transform === "static_value" ? "(fixed value)" : "(unset)")}</span>
+            <span class="transform-pill" style="cursor:default;">${(TRANSFORMS.find(t => t.id === rule.transform) || {}).label || rule.transform}</span>
+            <div class="target-mapping-actions">
+              <button class="icon-btn" onclick="mbToggleOpConfig('${f.name}')" title="Configure operation">⚙</button>
+              <button class="icon-btn danger" onclick="mbRemoveMapping('${f.name}')" title="Remove">✕</button>
+            </div>
+          </div>
+          ${isOpen ? mbRenderOpConfig(rule) : ""}
+        ` : `<div class="target-drop-empty">Drop a source field here</div>`}
+      </div>`;
+  }).join("");
+}
+
+function mbDrop(event, targetField) {
+  event.preventDefault();
+  event.currentTarget.classList.remove("drag-over");
+  const sourceField = event.dataTransfer.getData("text/plain");
+  if (!sourceField) return;
+  let rule = findRule(targetField);
+  if (!rule) { rule = { targetField, transform: "direct" }; builderState.rules.push(rule); }
+  rule.sourceField = sourceField;
+  mbRenderTargetFields();
+}
+
+function mbToggleOpConfig(targetField) {
+  builderState.openConfigFor = builderState.openConfigFor === targetField ? null : targetField;
+  mbRenderTargetFields();
+}
+
+function mbRemoveMapping(targetField) {
+  builderState.rules = builderState.rules.filter(r => r.targetField !== targetField);
+  if (builderState.openConfigFor === targetField) builderState.openConfigFor = null;
+  mbRenderTargetFields();
+}
+
+// The "one layer of data operation on the value" — every wired connection
+// defaults to a direct copy, but can be reconfigured here to any of the
+// transform engine's operations (src/services/transformEngine.ts on the
+// backend). This panel is just a UI for the same FieldMappingRule shape the
+// API already accepts; nothing new on the backend was needed for this part.
+function mbRenderOpConfig(rule) {
+  const tf = rule.targetField;
+  let html = `<div class="op-config">
+    <select onchange="mbSetTransform('${tf}',this.value)">
+      ${TRANSFORMS.map(t => `<option value="${t.id}" ${t.id === rule.transform ? "selected" : ""}>${t.label}</option>`).join("")}
+    </select>`;
+
+  if (rule.transform === "concat") {
+    const selected = rule.sourceFields || (rule.sourceField ? [rule.sourceField] : []);
+    html += `<div class="op-hint">Fields to combine, in order checked:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${builderState.sourceFields.map(f => `
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;">
+            <input type="checkbox" ${selected.includes(f.name) ? "checked" : ""} onchange="mbToggleConcatField('${tf}','${f.name}',this.checked)"> ${f.name}
+          </label>`).join("")}
+      </div>
+      <input placeholder="separator (e.g. a space)" value="${rule.separator || ""}" onchange="mbUpdateOpField('${tf}','separator',this.value)">`;
+  } else if (rule.transform === "date_format") {
+    html += `<input placeholder="e.g. YYYY-MM-DD" value="${rule.dateFormat || "YYYY-MM-DD"}" onchange="mbUpdateOpField('${tf}','dateFormat',this.value)">
+      <div class="op-hint">Tokens: YYYY, MM, DD</div>`;
+  } else if (rule.transform === "static_value") {
+    html += `<input placeholder="fixed value written to every record" value="${rule.staticValue || ""}" onchange="mbUpdateOpField('${tf}','staticValue',this.value)">`;
+  } else if (rule.transform === "lookup_table") {
+    const pairs = rule.lookupPairs || Object.entries(rule.lookupTable || {}).map(([k, v]) => ({ k, v }));
+    rule.lookupPairs = pairs;
+    html += `<div class="op-hint">Maps the source value → an output value:</div>`;
+    pairs.forEach((p, i) => {
+      html += `<div class="lookup-row">
+        <input placeholder="source value" value="${p.k}" style="flex:1;" onchange="mbUpdateLookupPair('${tf}',${i},'k',this.value)">
+        <span style="color:var(--text-dim);">→</span>
+        <input placeholder="output value" value="${p.v}" style="flex:1;" onchange="mbUpdateLookupPair('${tf}',${i},'v',this.value)">
+        <button class="icon-btn danger" onclick="mbRemoveLookupPair('${tf}',${i})">✕</button>
+      </div>`;
+    });
+    html += `<button class="btn-ghost btn-sm" style="align-self:flex-start;" onclick="mbAddLookupPair('${tf}')">+ Add row</button>`;
+  } else if (rule.transform === "custom_js") {
+    html += `<textarea placeholder="e.g. upper(fields.firstName) + ' ' + upper(fields.lastName)" onchange="mbUpdateOpField('${tf}','customJs',this.value)">${rule.customJs || ""}</textarea>
+      <div class="op-hint">Sandboxed expression — <code>fields.x</code> reads a source field; helpers: upper() lower() trim() substr() concat() coalesce() toNumber() toString() length(). No loops or other identifiers allowed; validated on save.</div>`;
+  } else {
+    html += `<div class="op-hint">Copies the source value as-is, no transformation.</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function mbSetTransform(targetField, transform) {
+  const r = findRule(targetField);
+  if (!r) return;
+  r.transform = transform;
+  // Switching operation type invalidates the old type's extra fields —
+  // clear them so a leftover date pattern doesn't silently apply under lookup_table, etc.
+  delete r.sourceFields; delete r.separator; delete r.dateFormat;
+  delete r.staticValue; delete r.lookupTable; delete r.lookupPairs; delete r.customJs;
+  mbRenderTargetFields();
+}
+function mbUpdateOpField(targetField, key, value) { const r = findRule(targetField); if (r) r[key] = value; }
+function mbToggleConcatField(targetField, fieldName, checked) {
+  const r = findRule(targetField); if (!r) return;
+  r.sourceFields = r.sourceFields || (r.sourceField ? [r.sourceField] : []);
+  if (checked) { if (!r.sourceFields.includes(fieldName)) r.sourceFields.push(fieldName); }
+  else { r.sourceFields = r.sourceFields.filter(x => x !== fieldName); }
+}
+function mbAddLookupPair(targetField) { const r = findRule(targetField); if (!r) return; r.lookupPairs = r.lookupPairs || []; r.lookupPairs.push({ k: "", v: "" }); mbRenderTargetFields(); }
+function mbUpdateLookupPair(targetField, idx, field, value) { const r = findRule(targetField); if (!r || !r.lookupPairs) return; r.lookupPairs[idx][field] = value; }
+function mbRemoveLookupPair(targetField, idx) { const r = findRule(targetField); if (!r || !r.lookupPairs) return; r.lookupPairs.splice(idx, 1); mbRenderTargetFields(); }
+
+function isRuleComplete(r) {
+  if (r.transform === "static_value") return true;
+  if (r.transform === "concat") return Boolean(r.sourceFields && r.sourceFields.length);
+  if (r.transform === "custom_js") return Boolean(r.customJs);
+  return Boolean(r.sourceField);
+}
+
+function buildFieldMappingsPayload() {
+  return builderState.rules.filter(isRuleComplete).map(r => {
+    const rule = { targetField: r.targetField, transform: r.transform };
+    if (r.sourceField) rule.sourceField = r.sourceField;
+    if (r.sourceFields) rule.sourceFields = r.sourceFields;
+    if (r.separator) rule.separator = r.separator;
+    if (r.dateFormat) rule.dateFormat = r.dateFormat;
+    if (r.staticValue !== undefined && r.staticValue !== "") rule.staticValue = r.staticValue;
+    if (r.transform === "lookup_table") {
+      const table = {};
+      (r.lookupPairs || []).forEach(p => { if (p.k) table[p.k] = p.v; });
+      rule.lookupTable = table;
+    }
+    if (r.customJs) rule.customJs = r.customJs;
+    return rule;
+  });
+}
 
 async function saveMapping() {
   const errEl = $("mbError");
@@ -531,7 +778,7 @@ async function saveMapping() {
     await api("/mappings", { method: "POST", body: JSON.stringify({
       name: $("mbName").value, sourceConnectionId: builderState.sourceConnId, targetConnectionId: builderState.targetConnId,
       sourceObject: builderState.sourceObj, targetObject: builderState.targetObj,
-      fieldMappings: builderState.rules.filter(r => r.targetField).map(({ id, ...r }) => r),
+      fieldMappings: buildFieldMappingsPayload(),
       triggerType: "poll", pollIntervalSec: 300,
     })});
     closeModal();

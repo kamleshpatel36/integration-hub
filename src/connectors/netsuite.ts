@@ -1,17 +1,27 @@
+import crypto from "crypto";
 import { BaseConnector, ConnectorConfig, FieldDescriptor, ReadOptions, ReadResult } from "./base";
 
 /**
- * NetSuite connector — SuiteTalk REST Web Services, OAuth 2.0 client credentials.
+ * NetSuite connector — SuiteTalk REST Web Services. Supports two auth modes,
+ * selected via `config.authType`:
  *
- * Expected config shape (stored encrypted in Connection.credentialsEnc, decrypted
- * before this class is instantiated):
+ * "oauth2" (default if authType is omitted, for backwards compatibility):
  * {
- *   accountId: "1234567",          // NetSuite account id, e.g. "TSTDRV1234567"
- *   accessToken: "...",
- *   refreshToken: "...",
- *   tokenExpiresAt: "2026-08-20T12:00:00Z",
- *   clientId: "...",
- *   clientSecret: "..."
+ *   authType: "oauth2",
+ *   accountId: "1234567",
+ *   clientId: "...", clientSecret: "...", refreshToken: "...",
+ *   accessToken: "...",        // optional — auto-fetched if missing/expired
+ *   tokenExpiresAt: "2026-08-20T12:00:00Z"  // optional, same reason
+ * }
+ *
+ * "oauth1" (Token-Based Authentication / TBA — no refresh flow; every
+ * request is individually signed with the consumer secret + token secret,
+ * so there's no access token to expire or refresh):
+ * {
+ *   authType: "oauth1",
+ *   accountId: "1234567",
+ *   consumerKey: "...", consumerSecret: "...",
+ *   tokenId: "...", tokenSecret: "..."
  * }
  *
  * NOTE ON GOVERNANCE: NetSuite enforces per-account concurrency limits (typically
@@ -22,20 +32,77 @@ import { BaseConnector, ConnectorConfig, FieldDescriptor, ReadOptions, ReadResul
  * jobs instead of 429/SSS_REQUEST_LIMIT_EXCEEDED errors.
  */
 export class NetSuiteConnector extends BaseConnector {
+  private get isOAuth1(): boolean {
+    return this.config.authType === "oauth1";
+  }
+
   private get baseUrl(): string {
     const accountId = (this.config.accountId as string).toLowerCase().replace(/_/g, "-");
     return `https://${accountId}.suitetalk.api.netsuite.com/services/rest/record/v1`;
   }
 
-  private async authHeader(): Promise<Record<string, string>> {
+  /**
+   * Builds the Authorization header for one request. OAuth 1.0a's signature
+   * is computed over the exact HTTP method + URL (including query string)
+   * of THIS request, so — unlike a bearer token — it can't be built once
+   * and reused; every call site passes its own method/url.
+   */
+  private async buildAuthHeaders(method: string, url: string): Promise<Record<string, string>> {
+    const authHeader = this.isOAuth1 ? this.buildOAuth1Header(method, url) : await this.buildOAuth2Header();
+    return { Authorization: authHeader, "Content-Type": "application/json" };
+  }
+
+  private async buildOAuth2Header(): Promise<string> {
     await this.refreshAuthIfNeeded();
-    return {
-      Authorization: `Bearer ${this.config.accessToken}`,
-      "Content-Type": "application/json",
+    return `Bearer ${this.config.accessToken}`;
+  }
+
+  /**
+   * OAuth 1.0a (RFC 5849) HMAC-SHA256 signing — the algorithm NetSuite's
+   * Token-Based Authentication requires. Built from scratch here rather
+   * than pulling in an oauth-1.0a npm package, since the whole thing is
+   * ~30 lines and it's one less third-party dependency handling secrets.
+   */
+  private buildOAuth1Header(method: string, fullUrl: string): string {
+    const url = new URL(fullUrl);
+    const queryParams: Record<string, string> = {};
+    url.searchParams.forEach((value, key) => (queryParams[key] = value));
+    const baseUrlNoQuery = `${url.origin}${url.pathname}`;
+
+    const oauthParams: Record<string, string> = {
+      oauth_consumer_key: this.config.consumerKey as string,
+      oauth_token: this.config.tokenId as string,
+      oauth_signature_method: "HMAC-SHA256",
+      oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
+      oauth_nonce: crypto.randomBytes(16).toString("hex"),
+      oauth_version: "1.0",
     };
+
+    // Signature base string: METHOD & percent-encoded base URL & percent-encoded,
+    // alphabetically-sorted "key=value" params (oauth params + any query params)
+    const allParams = { ...oauthParams, ...queryParams };
+    const paramString = Object.keys(allParams)
+      .sort()
+      .map((key) => `${percentEncode(key)}=${percentEncode(allParams[key])}`)
+      .join("&");
+    const baseString = [method.toUpperCase(), percentEncode(baseUrlNoQuery), percentEncode(paramString)].join("&");
+
+    const signingKey = `${percentEncode(this.config.consumerSecret as string)}&${percentEncode(this.config.tokenSecret as string)}`;
+    const signature = crypto.createHmac("sha256", signingKey).update(baseString).digest("base64");
+
+    const authParams: Record<string, string> = { ...oauthParams, oauth_signature: signature };
+    const headerParams = Object.keys(authParams)
+      .map((key) => `${percentEncode(key)}="${percentEncode(authParams[key])}"`)
+      .join(", ");
+
+    // realm is the NetSuite account ID — required by NetSuite's TBA implementation,
+    // not strictly part of the OAuth 1.0a spec's signature computation.
+    return `OAuth realm="${this.config.accountId}", ${headerParams}`;
   }
 
   async refreshAuthIfNeeded(): Promise<void> {
+    if (this.isOAuth1) return; // TBA has no refresh flow — tokens don't expire this way
+
     const expiresAt = this.config.tokenExpiresAt
       ? new Date(this.config.tokenExpiresAt as string)
       : null;
@@ -65,8 +132,9 @@ export class NetSuiteConnector extends BaseConnector {
 
   async testConnection(): Promise<{ ok: boolean; message?: string }> {
     try {
-      const headers = await this.authHeader();
-      const resp = await fetch(`${this.baseUrl}/customer?limit=1`, { headers });
+      const url = `${this.baseUrl}/customer?limit=1`;
+      const headers = await this.buildAuthHeaders("GET", url);
+      const resp = await fetch(url, { headers });
       if (!resp.ok) return { ok: false, message: `HTTP ${resp.status}` };
       return { ok: true };
     } catch (err) {
@@ -81,22 +149,20 @@ export class NetSuiteConnector extends BaseConnector {
   }
 
   async listFields(objectType: string): Promise<FieldDescriptor[]> {
-    const headers = await this.authHeader();
-    const resp = await fetch(
-      `https://${this.config.accountId}.suitetalk.api.netsuite.com/services/rest/record/v1/metadata-catalog/${objectType}`,
-      { headers: { ...headers, Accept: "application/schema+json" } }
-    );
+    const url = `https://${this.config.accountId}.suitetalk.api.netsuite.com/services/rest/record/v1/metadata-catalog/${objectType}`;
+    const headers = await this.buildAuthHeaders("GET", url);
+    const resp = await fetch(url, { headers: { ...headers, Accept: "application/schema+json" } });
     if (!resp.ok) throw new Error(`Failed to fetch metadata for ${objectType}: ${resp.status}`);
     const schema = (await resp.json()) as { properties?: Record<string, { type: string }> };
     return Object.entries(schema.properties ?? {}).map(([name, def]) => ({
       name,
       label: name,
       type: mapNsTypeToFieldType(def.type),
+      isCustom: isCustomNetSuiteField(name),
     }));
   }
 
   async read(objectType: string, options: ReadOptions): Promise<ReadResult> {
-    const headers = await this.authHeader();
     // SuiteQL is generally better for bulk reads than record/v1 list endpoints,
     // but record/v1 is simpler for MVP. Swap in SuiteQL (/services/rest/query/v1/suiteql)
     // once volume requires it.
@@ -108,7 +174,9 @@ export class NetSuiteConnector extends BaseConnector {
       // for incremental sync, prefer SuiteQL with `lastmodifieddate >= ?`.
     }
 
-    const resp = await fetch(`${this.baseUrl}/${objectType}?${params.toString()}`, { headers });
+    const url = `${this.baseUrl}/${objectType}?${params.toString()}`;
+    const headers = await this.buildAuthHeaders("GET", url);
+    const resp = await fetch(url, { headers });
     if (!resp.ok) {
       if (resp.status === 429) {
         throw new Error("NETSUITE_RATE_LIMITED"); // caught by worker, triggers backoff+retry
@@ -123,14 +191,11 @@ export class NetSuiteConnector extends BaseConnector {
   }
 
   async write(objectType: string, record: Record<string, unknown>): Promise<string> {
-    const headers = await this.authHeader();
     const isUpdate = Boolean(record.id);
     const url = isUpdate ? `${this.baseUrl}/${objectType}/${record.id}` : `${this.baseUrl}/${objectType}`;
-    const resp = await fetch(url, {
-      method: isUpdate ? "PATCH" : "POST",
-      headers,
-      body: JSON.stringify(record),
-    });
+    const method = isUpdate ? "PATCH" : "POST";
+    const headers = await this.buildAuthHeaders(method, url);
+    const resp = await fetch(url, { method, headers, body: JSON.stringify(record) });
     if (!resp.ok) {
       if (resp.status === 429) throw new Error("NETSUITE_RATE_LIMITED");
       throw new Error(`NetSuite write failed: ${resp.status} ${await resp.text()}`);
@@ -152,4 +217,23 @@ function mapNsTypeToFieldType(nsType: string): FieldDescriptor["type"] {
     default:
       return "string";
   }
+}
+
+/**
+ * NetSuite's standard custom-field prefixes — a field starting with any of
+ * these was added via customization on this specific account, rather than
+ * being part of every account's base record schema for this type.
+ */
+function isCustomNetSuiteField(fieldName: string): boolean {
+  return /^cust(entity|body|col|item|record|page)_/i.test(fieldName);
+}
+
+/**
+ * OAuth 1.0a percent-encoding (RFC 3986) — stricter than JS's built-in
+ * encodeURIComponent, which leaves `!*'()` unescaped. The OAuth 1.0a spec
+ * requires those encoded too, or NetSuite will reject the signature as
+ * invalid (it computes the same base string on its end and compares).
+ */
+function percentEncode(str: string): string {
+  return encodeURIComponent(str).replace(/[!*'()]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 }
