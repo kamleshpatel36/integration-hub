@@ -38,11 +38,16 @@ function warnIfNoKmsInProduction() {
 function getStaticMasterKey(): Buffer {
   const key = process.env.CREDENTIALS_MASTER_KEY;
   if (!key) throw new Error("CREDENTIALS_MASTER_KEY env var is not set");
-  const buf = Buffer.from(key, "base64");
-  if (buf.length !== 32) {
-    throw new Error("CREDENTIALS_MASTER_KEY must decode to exactly 32 bytes (base64-encoded)");
-  }
-  return buf;
+  // Derive a 32-byte AES key via SHA-256 instead of requiring the raw value
+  // to itself be a base64-encoded 32-byte string. That stricter format is
+  // easy to get wrong depending on how the env var was generated — notably,
+  // Render Blueprint's `generateValue: true` produces a random string that
+  // is NOT guaranteed to decode to exactly 32 bytes, which surfaced as a
+  // cryptic failure here at request time rather than at deploy time.
+  // Hashing accepts any non-empty string (our own `randomBytes(32).toString
+  // ('base64')` recipe, Render's auto-generated value, a hand-typed
+  // passphrase — anything) and always yields a valid 256-bit key.
+  return crypto.createHash("sha256").update(key).digest();
 }
 
 function encryptWithStaticKey(plaintext: Buffer): Buffer {
