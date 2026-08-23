@@ -53,6 +53,18 @@
   .field-row { display: flex; flex-direction: column; gap: 4px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+  .setup-steps {
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;
+    font-size: 12px; color: var(--text-dim); background: rgba(255,255,255,0.015);
+  }
+  .setup-steps summary { cursor: pointer; color: var(--teal); font-weight: 600; font-size: 12px; }
+  .setup-steps ol { margin: 10px 0 2px; padding-left: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .setup-steps li { color: var(--text); line-height: 1.5; }
+  .setup-steps code {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 1px 5px; font-family: monospace; color: var(--amber); display: inline-block; margin-top: 3px;
+  }
+
   /* Login screen */
   #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
   .login-card { width: 100%; max-width: 380px; }
@@ -282,7 +294,7 @@ async function testConnection(id) {
 function openNewConnectionModal() {
   openModal("New connection", `
     <div class="field-row"><label>Type</label>
-      <select id="newConnType">
+      <select id="newConnType" onchange="renderCredFields()">
         <option value="NETSUITE">NetSuite</option>
         <option value="SHOPIFY">Shopify</option>
         <option value="SALESFORCE">Salesforce</option>
@@ -290,20 +302,113 @@ function openNewConnectionModal() {
       </select>
     </div>
     <div class="field-row"><label>Label</label><input id="newConnLabel" placeholder="e.g. Prod NetSuite"></div>
-    <div class="field-row"><label>Credentials (JSON)</label>
-      <textarea id="newConnCreds" rows="8" placeholder='{"accountId":"...","accessToken":"...","refreshToken":"...","clientId":"...","clientSecret":"..."}'></textarea>
+    <div id="credFieldsContainer"></div>
+    <div style="text-align:right;">
+      <a href="#" id="credModeToggle" onclick="toggleCredMode();return false;" style="font-size:11px;color:var(--text-dim);text-decoration:underline;">Edit as raw JSON instead</a>
     </div>
     <div id="newConnError" class="status-err" style="display:none;"></div>
     <button class="btn-primary" onclick="createConnection()">Create connection</button>
   `);
+  credMode = "structured";
+  renderCredFields();
+}
+
+let credMode = "structured";
+
+function toggleCredMode() {
+  credMode = credMode === "structured" ? "json" : "structured";
+  renderCredFields();
+}
+
+function renderCredFields() {
+  const type = $("newConnType").value;
+  const container = $("credFieldsContainer");
+  $("credModeToggle").textContent = credMode === "structured" ? "Edit as raw JSON instead" : "Switch back to guided fields";
+
+  if (credMode === "json") {
+    container.innerHTML = `
+      <div class="field-row"><label>Credentials (JSON)</label>
+        <textarea id="newConnCreds" rows="8" placeholder='${jsonPlaceholderFor(type)}'></textarea>
+      </div>`;
+    return;
+  }
+
+  if (type === "NETSUITE") {
+    container.innerHTML = `
+      <div class="field-row"><label>Account ID</label><input id="cf_accountId" placeholder="e.g. 1234567 or TSTDRV1234567"></div>
+      <div class="row2">
+        <div class="field-row"><label>Client ID</label><input id="cf_clientId" placeholder="from Integration record"></div>
+        <div class="field-row"><label>Client Secret</label><input id="cf_clientSecret" type="password" placeholder="from Integration record"></div>
+      </div>
+      <div class="field-row"><label>Refresh Token</label><input id="cf_refreshToken" type="password" placeholder="from one-time OAuth authorization"></div>
+      <div class="row2">
+        <div class="field-row"><label>Access Token <span style="color:var(--text-dim);font-weight:400;">(optional)</span></label><input id="cf_accessToken" type="password" placeholder="leave blank — auto-fetched"></div>
+        <div class="field-row"><label>Token Expires At <span style="color:var(--text-dim);font-weight:400;">(optional)</span></label><input id="cf_tokenExpiresAt" placeholder="leave blank — auto-refreshed"></div>
+      </div>
+      <details class="setup-steps">
+        <summary>How to get these values from NetSuite ▾</summary>
+        <ol>
+          <li><b>Enable the feature.</b> Setup → Company → Enable Features → SuiteCloud tab → check <b>OAuth 2.0</b> (and <b>Token-Based Authentication</b> if not already on) → Save.</li>
+          <li><b>Create an Integration record.</b> Setup → Integration → Manage Integrations → New. Name it, under Authentication check <b>Authorization Code Grant</b> with a Redirect URI you control (any URL that can show you the <code>?code=</code> in its address bar works, even a scratch page). Save — NetSuite shows <b>Client ID</b> and <b>Client Secret</b> exactly once. Copy both now.</li>
+          <li><b>Assign permissions.</b> Setup → Users/Roles → Manage Roles — make sure the role you'll authorize with has <b>REST Web Services</b> permission plus view/edit access to whatever record types you plan to sync (Customer, Sales Order, etc.).</li>
+          <li><b>Authorize once, in a browser.</b> Visit:<br>
+            <code style="font-size:10px;word-break:break-all;">https://{accountId}.app.netsuite.com/app/login/oauth2/authorize.nl?response_type=code&client_id={clientId}&redirect_uri={yourRedirectUri}&scope=restlets%20rest_webservices&state=xyz</code><br>
+            Log in, approve, and NetSuite redirects to your Redirect URI with a <code>code</code> in the URL — copy that code.</li>
+          <li><b>Exchange the code for a refresh token.</b> One-time <code>curl</code>, replacing the placeholders:<br>
+            <code style="font-size:10px;word-break:break-all;">curl -X POST https://{accountId}.suitetalk.api.netsuite.com/services/rest/auth/oauth2/v1/token -d grant_type=authorization_code -d code={theCode} -d redirect_uri={yourRedirectUri} -u {clientId}:{clientSecret}</code><br>
+            The response's <code>refresh_token</code> field is what goes in the field above — it's long-lived; this connector auto-refreshes the access token from it on every use, so Access Token/Token Expires At above can stay blank.</li>
+        </ol>
+      </details>`;
+  } else {
+    container.innerHTML = `
+      <div class="field-row"><label>Base URL</label><input id="cf_baseUrl" placeholder="https://api.example.com"></div>
+      <div class="row2">
+        <div class="field-row"><label>Auth Header Name</label><input id="cf_authHeader" value="Authorization"></div>
+        <div class="field-row"><label>Auth Header Value</label><input id="cf_authValue" type="password" placeholder="Bearer xxx or raw API key"></div>
+      </div>
+      <div class="field-row"><label>Known object types <span style="color:var(--text-dim);font-weight:400;">(comma-separated — this connector can't auto-discover them yet)</span></label><input id="cf_knownObjectTypes" placeholder="customer, order, product"></div>`;
+  }
+}
+
+function jsonPlaceholderFor(type) {
+  if (type === "NETSUITE") return '{"accountId":"...","clientId":"...","clientSecret":"...","refreshToken":"..."}';
+  return '{"baseUrl":"https://...","authHeader":"Authorization","authValue":"Bearer ...","knownObjectTypes":["customer"]}';
+}
+
+function buildCredentialsFromForm() {
+  const type = $("newConnType").value;
+  if (credMode === "json") {
+    return JSON.parse($("newConnCreds").value || "{}");
+  }
+  if (type === "NETSUITE") {
+    const creds = {
+      accountId: $("cf_accountId").value.trim(),
+      clientId: $("cf_clientId").value.trim(),
+      clientSecret: $("cf_clientSecret").value.trim(),
+      refreshToken: $("cf_refreshToken").value.trim(),
+    };
+    const accessToken = $("cf_accessToken").value.trim();
+    const tokenExpiresAt = $("cf_tokenExpiresAt").value.trim();
+    if (accessToken) creds.accessToken = accessToken;
+    if (tokenExpiresAt) creds.tokenExpiresAt = tokenExpiresAt;
+    const missing = ["accountId", "clientId", "clientSecret", "refreshToken"].filter(k => !creds[k]);
+    if (missing.length) throw new Error("Missing required field(s): " + missing.join(", "));
+    return creds;
+  }
+  const baseUrl = $("cf_baseUrl").value.trim();
+  const authHeader = $("cf_authHeader").value.trim();
+  const authValue = $("cf_authValue").value.trim();
+  const knownObjectTypes = $("cf_knownObjectTypes").value.split(",").map(s => s.trim()).filter(Boolean);
+  if (!baseUrl) throw new Error("Base URL is required");
+  return { baseUrl, authHeader: authHeader || "Authorization", authValue, knownObjectTypes };
 }
 
 async function createConnection() {
   const errEl = $("newConnError");
   errEl.style.display = "none";
   let credentials;
-  try { credentials = JSON.parse($("newConnCreds").value || "{}"); }
-  catch (e) { errEl.textContent = "Credentials must be valid JSON"; errEl.style.display = "block"; return; }
+  try { credentials = buildCredentialsFromForm(); }
+  catch (e) { errEl.textContent = e.message.includes("JSON") ? "Credentials must be valid JSON" : e.message; errEl.style.display = "block"; return; }
   try {
     await api("/connections", { method: "POST", body: JSON.stringify({
       connectorType: $("newConnType").value, label: $("newConnLabel").value, credentials,
