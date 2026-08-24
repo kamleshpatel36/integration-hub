@@ -100,6 +100,31 @@
   .lookup-row { display: flex; gap: 4px; align-items: center; }
   .op-hint { font-size: 10px; color: var(--text-dim); line-height: 1.4; }
 
+  .mapped-summary { margin-bottom: 14px; }
+  .mapped-summary-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .mapped-chip {
+    display: flex; align-items: center; gap: 5px; font-size: 11px; font-family: monospace;
+    background: rgba(45,212,191,0.06); border: 1px solid var(--teal-dim); border-radius: 20px; padding: 4px 6px 4px 10px;
+  }
+  .mb-toolbar { display: flex; gap: 6px; align-items: center; margin: 10px 0 6px; }
+  .mb-toolbar-spacer { flex: 1; }
+  .search-input { margin-bottom: 8px; }
+  .field-pill.used { opacity: 0.55; }
+  .field-pill .used-badge { color: var(--teal); font-size: 10px; margin-left: 4px; }
+  .suggest-panel { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 6px; }
+  .suggest-results { display: flex; flex-wrap: wrap; gap: 6px; }
+  .suggest-pill {
+    background: var(--bg); border: 1px solid var(--teal-dim); color: var(--teal); font-family: monospace;
+    font-size: 11px; border-radius: 20px; padding: 4px 10px; cursor: pointer;
+  }
+  .suggest-pill:hover { background: rgba(45,212,191,0.1); }
+  .suggest-pill .score { color: var(--text-dim); margin-left: 4px; }
+  .target-drop-empty-btn {
+    background: transparent; border: none; color: var(--text-dim); font-size: 11px; padding: 4px 0;
+    cursor: pointer; text-align: left; width: 100%;
+  }
+  .target-drop-empty-btn:hover { color: var(--teal); }
+
   /* Login screen */
   #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
   .login-card { width: 100%; max-width: 380px; }
@@ -549,7 +574,7 @@ async function triggerSync(mappingId) {
 
 async function openMappingBuilder() {
   const conns = viewCache.connections || await api("/connections").catch(() => []);
-  builderState = { name: "New sync", sourceConnId: "", targetConnId: "", sourceObj: "", targetObj: "", sourceFields: [], targetFields: [], rules: [], openConfigFor: null };
+  builderState = { name: "New sync", sourceConnId: "", targetConnId: "", sourceObj: "", targetObj: "", sourceFields: [], targetFields: [], rules: [], openConfigFor: null, suggestOpenFor: null, sourceSearchQuery: "", targetSearchQuery: "" };
   openModal("New mapping", `
     <div class="field-row"><label>Name</label><input id="mbName" value="${builderState.name}"></div>
     <div class="row2">
@@ -561,14 +586,22 @@ async function openMappingBuilder() {
       <div class="field-row"><label>Target object</label><select id="mbTargetObj" onchange="mbObjChange('target')" disabled><option value="">Choose connection first</option></select></div>
     </div>
     <div id="mbRulesSection" style="display:none;">
-      <label style="margin-top:4px;">Field mapping <span style="color:var(--text-dim);font-weight:400;">— drag a source field onto a target field, then use ⚙ to change how the value is transformed</span></label>
+      <div class="mb-toolbar">
+        <label style="margin:0;">Field mapping</label>
+        <div class="mb-toolbar-spacer"></div>
+        <button class="btn-ghost btn-sm" onclick="mbAutoMapByName()">✨ Auto-map by name</button>
+        <button class="btn-ghost btn-sm" onclick="mbClearAllMappings()">Clear all</button>
+      </div>
+      <div id="mbMappedSummary" class="mapped-summary"></div>
       <div class="dnd-mapper">
         <div>
           <div class="dnd-col-title">Source fields</div>
+          <input class="search-input" id="mbSourceSearch" placeholder="Search source fields..." oninput="mbFilterSourceList(this.value)">
           <div id="mbSourceFieldList" class="dnd-field-list"></div>
         </div>
         <div>
           <div class="dnd-col-title">Target fields</div>
+          <input class="search-input" id="mbTargetSearch" placeholder="Search target fields..." oninput="mbFilterTargetList(this.value)">
           <div id="mbTargetFieldList" class="dnd-field-list"></div>
         </div>
       </div>
@@ -611,45 +644,184 @@ async function mbObjChange(which) {
 }
 
 function findRule(targetField) { return builderState.rules.find(r => r.targetField === targetField); }
+function isSourceFieldUsed(name) {
+  return builderState.rules.some(r => r.sourceField === name || (r.sourceFields || []).includes(name));
+}
+
+// ── Name-similarity matching, used by both "Auto-map by name" and the
+// per-target suggestion list. Pure string comparison, no external calls —
+// normalizes away casing/underscores/dots so "firstName" ~ "first_name" ~
+// "FIRSTNAME" all score as an exact match, then falls back to substring and
+// edit-distance scoring for partial matches (e.g. NetSuite's
+// "custentity_region" against a target field just called "region"). ──
+function normalizeFieldName(name) { return name.toLowerCase().replace(/[^a-z0-9]/g, ""); }
+function levenshtein(a, b) {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+function similarityScore(a, b) {
+  const na = normalizeFieldName(a), nb = normalizeFieldName(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 100;
+  if (na.includes(nb) || nb.includes(na)) return 85;
+  const dist = levenshtein(na, nb);
+  return Math.round((1 - dist / Math.max(na.length, nb.length)) * 100);
+}
+function suggestSourceFieldsFor(targetFieldName, limit) {
+  return builderState.sourceFields
+    .map(f => ({ field: f, score: similarityScore(f.name, targetFieldName) }))
+    .filter(x => x.score > 30)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit || 6);
+}
+
+// One-click bulk mapping: wires every target field to its best-scoring
+// unmapped source field, but only when confident (score >= 70) — anything
+// murkier is left for the user to pick via the per-target suggestion list
+// instead of guessing wrong silently.
+function mbAutoMapByName() {
+  let mapped = 0;
+  builderState.targetFields.forEach(tf => {
+    if (findRule(tf.name)) return;
+    const [best] = suggestSourceFieldsFor(tf.name, 1);
+    if (best && best.score >= 70) {
+      builderState.rules.push({ targetField: tf.name, transform: "direct", sourceField: best.field.name });
+      mapped++;
+    }
+  });
+  mbRenderSourceFields();
+  mbRenderTargetFields();
+  if (mapped === 0) alert("No confident name matches found — map the rest manually or click a target field for suggestions.");
+}
+function mbClearAllMappings() {
+  if (builderState.rules.length && !confirm("Remove all " + builderState.rules.length + " field mapping(s)?")) return;
+  builderState.rules = [];
+  builderState.openConfigFor = null;
+  builderState.suggestOpenFor = null;
+  mbRenderSourceFields();
+  mbRenderTargetFields();
+}
+
+function mbFilterSourceList(query) { builderState.sourceSearchQuery = query; mbRenderSourceFields(); }
+function mbFilterTargetList(query) { builderState.targetSearchQuery = query; mbRenderTargetFields(); }
 
 function mbRenderSourceFields() {
-  const standard = builderState.sourceFields.filter(f => !f.isCustom);
-  const custom = builderState.sourceFields.filter(f => f.isCustom);
+  const q = (builderState.sourceSearchQuery || "").toLowerCase();
+  const visible = q ? builderState.sourceFields.filter(f => f.name.toLowerCase().includes(q)) : builderState.sourceFields;
+  const standard = visible.filter(f => !f.isCustom);
+  const custom = visible.filter(f => f.isCustom);
   let html = "";
   if (standard.length) html += `<div class="dnd-group-label">Standard</div>` + standard.map(mbSourcePillHtml).join("");
   if (custom.length) html += `<div class="dnd-group-label">Custom</div>` + custom.map(mbSourcePillHtml).join("");
-  if (!standard.length && !custom.length) html = `<div class="target-drop-empty">No fields loaded for this object type</div>`;
+  if (!standard.length && !custom.length) html = `<div class="target-drop-empty">${builderState.sourceFields.length ? "No fields match your search" : "No fields loaded for this object type"}</div>`;
   $("mbSourceFieldList").innerHTML = html;
 }
 function mbSourcePillHtml(f) {
-  return `<div class="field-pill source-pill ${f.isCustom ? "custom" : ""}" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${f.name}')">
-    <span>${f.name}</span><span class="type-tag">${f.type}</span>
+  const used = isSourceFieldUsed(f.name);
+  return `<div class="field-pill source-pill ${f.isCustom ? "custom" : ""} ${used ? "used" : ""}" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${f.name}')" title="${used ? "Already used in a mapping — you can still map it again" : ""}">
+    <span>${f.name}</span>${used ? '<span class="used-badge">✓</span>' : ""}<span class="type-tag">${f.type}</span>
   </div>`;
 }
 
 function mbRenderTargetFields() {
-  $("mbTargetFieldList").innerHTML = builderState.targetFields.map(f => {
-    const rule = findRule(f.name);
-    const isOpen = builderState.openConfigFor === f.name;
-    return `
-      <div class="target-drop ${rule ? "mapped" : ""}" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="mbDrop(event,'${f.name}')">
-        <div class="target-drop-header">
-          <span class="mono">${f.name}${f.isCustom ? ' <span style="color:var(--violet);font-size:9px;">custom</span>' : ""}</span>
-        </div>
-        ${rule ? `
-          <div class="target-mapping-row">
-            <span class="cable-dot" style="background:var(--teal);"></span>
-            <span class="mono" style="color:var(--text);">${rule.sourceField || (rule.transform === "concat" ? (rule.sourceFields || []).join("+") || "(pick fields)" : rule.transform === "static_value" ? "(fixed value)" : "(unset)")}</span>
-            <span class="transform-pill" style="cursor:default;">${(TRANSFORMS.find(t => t.id === rule.transform) || {}).label || rule.transform}</span>
-            <div class="target-mapping-actions">
-              <button class="icon-btn" onclick="mbToggleOpConfig('${f.name}')" title="Configure operation">⚙</button>
-              <button class="icon-btn danger" onclick="mbRemoveMapping('${f.name}')" title="Remove">✕</button>
+  const q = (builderState.targetSearchQuery || "").toLowerCase();
+  const visible = q ? builderState.targetFields.filter(f => f.name.toLowerCase().includes(q)) : builderState.targetFields;
+
+  $("mbTargetFieldList").innerHTML = visible.length === 0
+    ? `<div class="target-drop-empty">${builderState.targetFields.length ? "No fields match your search" : "No fields loaded for this object type"}</div>`
+    : visible.map(f => {
+        const rule = findRule(f.name);
+        const isOpen = builderState.openConfigFor === f.name;
+        const suggestOpen = builderState.suggestOpenFor === f.name;
+        return `
+          <div class="target-drop ${rule ? "mapped" : ""}" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="mbDrop(event,'${f.name}')">
+            <div class="target-drop-header">
+              <span class="mono">${f.name}${f.isCustom ? ' <span style="color:var(--violet);font-size:9px;">custom</span>' : ""}</span>
             </div>
-          </div>
-          ${isOpen ? mbRenderOpConfig(rule) : ""}
-        ` : `<div class="target-drop-empty">Drop a source field here</div>`}
+            ${rule ? `
+              <div class="target-mapping-row">
+                <span class="cable-dot" style="background:var(--teal);"></span>
+                <span class="mono" style="color:var(--text);">${rule.sourceField || (rule.transform === "concat" ? (rule.sourceFields || []).join("+") || "(pick fields)" : rule.transform === "static_value" ? "(fixed value)" : "(unset)")}</span>
+                <span class="transform-pill" style="cursor:default;">${(TRANSFORMS.find(t => t.id === rule.transform) || {}).label || rule.transform}</span>
+                <div class="target-mapping-actions">
+                  <button class="icon-btn" onclick="mbToggleOpConfig('${f.name}')" title="Configure operation">⚙</button>
+                  <button class="icon-btn danger" onclick="mbRemoveMapping('${f.name}')" title="Remove">✕</button>
+                </div>
+              </div>
+              ${isOpen ? mbRenderOpConfig(rule) : ""}
+            ` : `
+              <button class="target-drop-empty-btn" onclick="mbToggleSuggestions('${f.name}')">
+                ${suggestOpen ? "▾" : "▸"} Drop a source field here, or click for suggestions
+              </button>
+              ${suggestOpen ? mbRenderSuggestPanel(f.name) : ""}
+            `}
+          </div>`;
+      }).join("");
+
+  mbRenderMappedSummary();
+}
+
+function mbRenderMappedSummary() {
+  const el = $("mbMappedSummary");
+  if (!el) return;
+  const mapped = builderState.rules.filter(isRuleComplete);
+  if (mapped.length === 0) {
+    el.innerHTML = `<div class="op-hint">No fields mapped yet.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="mapped-summary-list">${
+    mapped.map(r => {
+      const srcLabel = r.sourceField || (r.transform === "concat" ? (r.sourceFields || []).join("+") : r.transform === "static_value" ? "(fixed)" : r.transform === "custom_js" ? "(expression)" : "?");
+      return `<div class="mapped-chip">${srcLabel} → ${r.targetField}
+        <button class="icon-btn danger" style="padding:0;" onclick="mbRemoveMapping('${r.targetField}')">✕</button>
       </div>`;
-  }).join("");
+    }).join("")
+  }</div>`;
+}
+
+// Click-to-map: an alternative to dragging. Opens a small panel under the
+// target field showing the best name-matched source fields (clickable to
+// map instantly) plus a live search box for anything else.
+function mbToggleSuggestions(targetField) {
+  builderState.suggestOpenFor = builderState.suggestOpenFor === targetField ? null : targetField;
+  mbRenderTargetFields();
+}
+function safeId(s) { return "sg_" + String(s).replace(/[^a-zA-Z0-9_]/g, "_"); }
+function mbRenderSuggestPanel(targetField) {
+  const id = safeId(targetField);
+  return `
+    <div class="suggest-panel">
+      <input class="search-input" style="margin-bottom:0;" placeholder="Search any source field..." oninput="mbFilterSuggestions('${targetField}', this.value)">
+      <div id="${id}" class="suggest-results">${mbSuggestResultsHtml(targetField, "")}</div>
+    </div>`;
+}
+function mbSuggestResultsHtml(targetField, query) {
+  const fields = query
+    ? builderState.sourceFields.filter(f => f.name.toLowerCase().includes(query.toLowerCase())).map(f => ({ field: f, score: null }))
+    : suggestSourceFieldsFor(targetField, 8);
+  if (fields.length === 0) return `<span class="op-hint">No matches</span>`;
+  return fields.map(x => `<span class="suggest-pill" onclick="mbQuickMap('${targetField}','${x.field.name}')">${x.field.name}${x.score !== null ? `<span class="score">${x.score}%</span>` : ""}</span>`).join("");
+}
+function mbFilterSuggestions(targetField, query) {
+  // Only touches the results div, not the search input itself — keeps
+  // focus/cursor position intact while typing (re-rendering the whole
+  // panel on every keystroke would reset the input).
+  const el = document.getElementById(safeId(targetField));
+  if (el) el.innerHTML = mbSuggestResultsHtml(targetField, query);
+}
+function mbQuickMap(targetField, sourceField) {
+  let rule = findRule(targetField);
+  if (!rule) { rule = { targetField, transform: "direct" }; builderState.rules.push(rule); }
+  rule.sourceField = sourceField;
+  builderState.suggestOpenFor = null;
+  mbRenderSourceFields();
+  mbRenderTargetFields();
 }
 
 function mbDrop(event, targetField) {
@@ -660,6 +832,7 @@ function mbDrop(event, targetField) {
   let rule = findRule(targetField);
   if (!rule) { rule = { targetField, transform: "direct" }; builderState.rules.push(rule); }
   rule.sourceField = sourceField;
+  mbRenderSourceFields();
   mbRenderTargetFields();
 }
 
@@ -671,6 +844,7 @@ function mbToggleOpConfig(targetField) {
 function mbRemoveMapping(targetField) {
   builderState.rules = builderState.rules.filter(r => r.targetField !== targetField);
   if (builderState.openConfigFor === targetField) builderState.openConfigFor = null;
+  mbRenderSourceFields();
   mbRenderTargetFields();
 }
 
@@ -733,6 +907,7 @@ function mbSetTransform(targetField, transform) {
   // clear them so a leftover date pattern doesn't silently apply under lookup_table, etc.
   delete r.sourceFields; delete r.separator; delete r.dateFormat;
   delete r.staticValue; delete r.lookupTable; delete r.lookupPairs; delete r.customJs;
+  mbRenderSourceFields();
   mbRenderTargetFields();
 }
 function mbUpdateOpField(targetField, key, value) { const r = findRule(targetField); if (r) r[key] = value; }
