@@ -5,6 +5,7 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client
 import { prisma } from "../db/client";
 import { encryptCredentials, decryptCredentials } from "./crypto";
 import { logger } from "../config/logger";
+import { recordAuditLog } from "./auditLog";
 import type { BackupConfig } from "@prisma/client";
 
 /**
@@ -149,6 +150,10 @@ export async function runBackup(trigger: "scheduled" | "manual"): Promise<{ loca
     await pruneOldBackups(config);
 
     logger.info({ location, sizeBytes: buffer.length, trigger }, "backup completed");
+    recordAuditLog({
+      tenantId: null, actor: trigger === "manual" ? "admin" : "system", action: "backup.completed",
+      targetType: "backupRun", targetId: run.id, metadata: { location, sizeBytes: buffer.length, trigger },
+    });
     return { location, sizeBytes: buffer.length };
   } catch (err) {
     await prisma.backupRun.update({
@@ -156,6 +161,10 @@ export async function runBackup(trigger: "scheduled" | "manual"): Promise<{ loca
       data: { status: "failed", finishedAt: new Date(), errorMessage: (err as Error).message },
     });
     logger.error({ err: (err as Error).message, trigger }, "backup failed");
+    recordAuditLog({
+      tenantId: null, actor: trigger === "manual" ? "admin" : "system", action: "backup.failed",
+      targetType: "backupRun", targetId: run.id, metadata: { error: (err as Error).message, trigger },
+    });
     throw err;
   }
 }

@@ -12,6 +12,7 @@ import apiKeysRouter from "./api/routes/apiKeys";
 import webhooksRouter from "./api/routes/webhooks";
 import adminBackupRouter from "./api/routes/adminBackup";
 import adminRouter from "./api/routes/admin";
+import auditLogRouter from "./api/routes/auditLog";
 import { startWorkerProcess } from "./queue/worker";
 import { startPollScheduler } from "./queue/scheduler";
 import { startBackupScheduler } from "./queue/backupScheduler";
@@ -47,6 +48,7 @@ app.use("/api/jobs", jobsRouter);
 app.use("/api/api-keys", apiKeysRouter);
 app.use("/api/admin/backup-config", adminBackupRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/audit-log", auditLogRouter);
 
 // Centralized error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -4,52 +4,84 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integration Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0a0e17; --surface: #131826; --border: #232b3d; --text: #e2e4e9;
-    --text-dim: #7b8496; --teal: #2dd4bf; --teal-dim: #0f766e; --amber: #fbbf24;
-    --rose: #fb7185; --violet: #a78bfa; --green: #34d399;
+    --bg: #090c14; --bg-elevated: #0d111c; --surface: #131826; --surface-hover: #171d2e;
+    --border: #232b3d; --border-light: #2c3549; --text: #e8eaf0; --text-dim: #8890a3; --text-faint: #545e75;
+    --teal: #2dd4bf; --teal-dim: #0f766e; --teal-glow: rgba(45,212,191,0.15);
+    --amber: #fbbf24; --amber-dim: #92400e; --rose: #fb7185; --rose-dim: #9f1239;
+    --violet: #a78bfa; --green: #34d399; --green-dim: #065f46;
+    --radius: 10px; --radius-sm: 6px;
+    --shadow-md: 0 4px 24px rgba(0,0,0,0.35); --shadow-lg: 0 12px 48px rgba(0,0,0,0.5);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  .mono { font-family: "SF Mono", Consolas, Monaco, monospace; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'JetBrains Mono', "SF Mono", Consolas, Monaco, monospace; }
   input, select, textarea, button { font-family: inherit; }
   input, select, textarea {
-    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-    padding: 9px 12px; font-size: 13px; color: var(--text); font-family: monospace;
+    width: 100%; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 9px 12px; font-size: 13px; color: var(--text); font-family: 'JetBrains Mono', monospace;
+    transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
   }
-  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--teal-dim); }
-  label { font-size: 11px; color: var(--text-dim); font-family: monospace; display: block; margin-bottom: 4px; }
-  button { font-weight: 600; font-size: 12px; border: none; border-radius: 6px; padding: 9px 16px; cursor: pointer; }
-  .btn-primary { background: var(--teal); color: #05221f; }
-  .btn-primary:hover { background: #5eead4; }
-  .btn-primary:disabled { background: #3a4152; color: #6b7280; cursor: not-allowed; }
+
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--teal-dim); box-shadow: 0 0 0 3px var(--teal-glow); }
+  label { font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; display: block; margin-bottom: 4px; letter-spacing: 0.02em; }
+  button { font-weight: 600; font-size: 12px; border: none; border-radius: var(--radius-sm); padding: 9px 16px; cursor: pointer; transition: all 0.15s var(--ease); }
+  .btn-primary { background: var(--teal); color: #05221f; box-shadow: 0 2px 12px var(--teal-glow); }
+  .btn-primary:hover { background: #5eead4; transform: translateY(-1px); box-shadow: 0 4px 16px var(--teal-glow); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { background: #3a4152; color: #6b7280; cursor: not-allowed; box-shadow: none; transform: none; }
   .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
-  .btn-ghost:hover { border-color: #3a4152; background: rgba(255,255,255,0.03); }
-  .btn-danger { background: transparent; border: 1px solid rgba(251,113,133,0.4); color: var(--rose); }
-  .btn-danger:hover { background: rgba(251,113,133,0.1); }
+  .btn-ghost:hover { border-color: var(--border-light); background: var(--surface-hover); }
+  .btn-danger { background: transparent; border: 1px solid rgba(251,113,133,0.35); color: var(--rose); }
+  .btn-danger:hover { background: rgba(251,113,133,0.1); border-color: rgba(251,113,133,0.6); }
   .btn-sm { padding: 5px 10px; font-size: 11px; }
-  .status-err { color: var(--rose); font-size: 12px; margin-top: 8px; font-family: monospace; }
+  .status-err { color: var(--rose); font-size: 12px; margin-top: 8px; font-family: 'JetBrains Mono', monospace; }
   .status-ok { color: var(--green); font-size: 12px; }
-  .panel { border: 1px solid var(--border); background: rgba(19,24,38,0.6); border-radius: 10px; overflow: hidden; }
+  .panel {
+    border: 1px solid var(--border); background: linear-gradient(180deg, var(--surface) 0%, rgba(19,24,38,0.5) 100%);
+    border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-md);
+  }
   .card { padding: 20px; }
   table { width: 100%; border-collapse: collapse; }
-  thead th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); padding: 10px 14px; border-bottom: 1px solid var(--border); }
-  tbody td { padding: 10px 14px; border-bottom: 1px solid rgba(35,43,61,0.5); font-size: 13px; }
-  tbody tr:hover { background: rgba(255,255,255,0.02); }
-  .badge { display: inline-block; font-size: 10px; font-family: monospace; padding: 3px 8px; border-radius: 20px; border: 1px solid; }
+  thead th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-dim); padding: 11px 16px; border-bottom: 1px solid var(--border); }
+  tbody td { padding: 11px 16px; border-bottom: 1px solid rgba(35,43,61,0.5); font-size: 13px; }
+  tbody tr { transition: background 0.1s var(--ease); }
+  tbody tr:hover { background: rgba(255,255,255,0.025); }
+  tbody tr:last-child td { border-bottom: none; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-family: 'JetBrains Mono', monospace; padding: 3px 9px; border-radius: 20px; border: 1px solid; font-weight: 500; }
   .badge-teal { color: var(--teal); border-color: var(--teal-dim); background: rgba(15,118,110,0.15); }
   .badge-amber { color: var(--amber); border-color: #92400e; background: rgba(146,64,14,0.15); }
   .badge-rose { color: var(--rose); border-color: #9f1239; background: rgba(159,18,57,0.15); }
   .badge-green { color: var(--green); border-color: #065f46; background: rgba(6,95,70,0.15); }
   .badge-gray { color: var(--text-dim); border-color: var(--border); }
-  .empty { text-align: center; padding: 50px 0; color: var(--text-dim); font-size: 13px; }
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
-  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; max-width: 640px; width: 100%; max-height: 85vh; overflow-y: auto; }
-  .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
-  .modal-header h3 { margin: 0; font-size: 15px; }
-  .modal-close { background: transparent; border: none; color: var(--text-dim); font-size: 18px; cursor: pointer; padding: 4px; }
-  .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .empty { text-align: center; padding: 56px 20px; color: var(--text-dim); font-size: 13px; }
+  .empty-icon { font-size: 28px; opacity: 0.4; margin-bottom: 10px; }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(4,6,12,0.7); backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+    animation: fadeIn 0.15s var(--ease);
+  }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border-light); border-radius: 14px;
+    max-width: 640px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow-lg);
+    animation: modalIn 0.2s var(--ease);
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes modalIn { from { opacity: 0; transform: scale(0.97) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+  .modal-header h3 { margin: 0; font-size: 15px; font-weight: 600; }
+  .modal-close { background: transparent; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; padding: 6px; border-radius: 6px; transition: all 0.15s; }
+  .modal-close:hover { color: var(--text); background: var(--surface-hover); }
+  .modal-body { padding: 22px; display: flex; flex-direction: column; gap: 12px; }
   .field-row { display: flex; flex-direction: column; gap: 4px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
@@ -138,18 +170,29 @@
   /* Dashboard shell */
   #dashboard { display: none; min-height: 100vh; }
   .app-shell { display: flex; min-height: 100vh; }
-  .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 20px 0; display: flex; flex-direction: column; }
-  .sidebar-header { padding: 0 20px 20px; }
-  .sidebar-brand { display: flex; align-items: center; gap: 8px; color: var(--teal); font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 4px; }
-  .sidebar-role { font-size: 11px; color: var(--text-dim); font-family: monospace; }
-  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; color: var(--text-dim); cursor: pointer; font-size: 13px; border-left: 2px solid transparent; }
-  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.02); }
-  .nav-item.active { color: var(--teal); border-left-color: var(--teal); background: rgba(45,212,191,0.05); }
-  .sidebar-footer { margin-top: auto; padding: 12px 20px 0; border-top: 1px solid var(--border); padding-top: 16px; }
-  .main-area { flex: 1; padding: 32px 40px; overflow-y: auto; max-width: 1100px; }
-  .view-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-  .view-title { font-size: 20px; font-weight: 600; margin: 0; }
-  .view-sub { color: var(--text-dim); font-size: 13px; margin: 4px 0 0; }
+  .sidebar {
+    width: 232px; background: var(--bg-elevated); border-right: 1px solid var(--border);
+    padding: 22px 0; display: flex; flex-direction: column; box-shadow: var(--shadow-md);
+    position: relative; z-index: 1;
+  }
+  .sidebar-header { padding: 0 20px 22px; }
+  .sidebar-brand { display: flex; align-items: center; gap: 8px; color: var(--teal); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 6px; }
+  .sidebar-brand-icon { width: 16px; height: 16px; }
+  .sidebar-role { font-size: 11px; color: var(--text-faint); font-family: 'JetBrains Mono', monospace; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px; padding: 10px 20px; color: var(--text-dim);
+    cursor: pointer; font-size: 13px; font-weight: 500; border-left: 2px solid transparent;
+    transition: all 0.15s var(--ease); position: relative;
+  }
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.75; }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.025); }
+  .nav-item.active { color: var(--teal); border-left-color: var(--teal); background: var(--teal-glow); }
+  .nav-item.active svg { opacity: 1; }
+  .sidebar-footer { margin-top: auto; padding: 16px 20px 0; border-top: 1px solid var(--border); }
+  .main-area { flex: 1; padding: 34px 44px; overflow-y: auto; max-width: 1180px; }
+  .view-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 26px; }
+  .view-title { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .view-sub { color: var(--text-dim); font-size: 13px; margin: 5px 0 0; }
 
   /* Mapping builder bits (reused from standalone tool) */
   .cable-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
@@ -158,6 +201,74 @@
   .transform-pill { font-size: 10px; font-family: monospace; border-radius: 20px; padding: 4px 8px; border: 1px solid var(--teal-dim); background: rgba(15,118,110,0.2); color: var(--teal); }
   .remove-btn { background: transparent; border: none; color: #4b5468; cursor: pointer; font-size: 14px; padding: 4px; }
   .remove-btn:hover { color: var(--rose); }
+
+  /* Dashboard overview */
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  .metric-card {
+    background: linear-gradient(150deg, var(--surface) 0%, var(--bg-elevated) 100%);
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px;
+    box-shadow: var(--shadow-md); transition: transform 0.15s var(--ease), border-color 0.15s var(--ease);
+  }
+  .metric-card:hover { transform: translateY(-2px); border-color: var(--border-light); }
+  .metric-card-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .metric-card-value { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+  .metric-card-sub { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+  .metric-card-sub .good { color: var(--green); } .metric-card-sub .bad { color: var(--rose); }
+  .metric-accent-teal { border-left: 2px solid var(--teal); }
+  .metric-accent-amber { border-left: 2px solid var(--amber); }
+  .metric-accent-rose { border-left: 2px solid var(--rose); }
+  .metric-accent-violet { border-left: 2px solid var(--violet); }
+  .section-title { font-size: 13px; font-weight: 700; color: var(--text); margin: 28px 0 12px; display: flex; align-items: center; justify-content: space-between; }
+
+  /* Activity log */
+  .activity-row { display: flex; gap: 12px; padding: 13px 16px; border-bottom: 1px solid rgba(35,43,61,0.5); align-items: flex-start; }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-icon {
+    width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 13px; background: var(--bg-elevated); border: 1px solid var(--border);
+  }
+  .activity-body { flex: 1; min-width: 0; }
+  .activity-action { font-size: 13px; color: var(--text); }
+  .activity-action b { font-weight: 600; }
+  .activity-meta { font-size: 11px; color: var(--text-faint); font-family: 'JetBrains Mono', monospace; margin-top: 3px; word-break: break-word; }
+  .activity-time { font-size: 11px; color: var(--text-faint); font-family: 'JetBrains Mono', monospace; white-space: nowrap; flex-shrink: 0; }
+  .actor-pill { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
+  .actor-tenant { background: var(--teal-glow); color: var(--teal); }
+  .actor-admin { background: rgba(167,139,250,0.15); color: var(--violet); }
+  .actor-system { background: rgba(139,144,163,0.15); color: var(--text-dim); }
+  .activity-filter-bar { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .filter-chip {
+    font-size: 11px; font-family: 'JetBrains Mono', monospace; padding: 5px 12px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; background: transparent; transition: all 0.15s;
+  }
+  .filter-chip:hover { border-color: var(--border-light); color: var(--text); }
+  .filter-chip.active { background: var(--teal-glow); border-color: var(--teal-dim); color: var(--teal); }
+
+  /* Toasts (replaces alert()) */
+  #toastRoot { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+    padding: 12px 16px; font-size: 13px; box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 10px;
+    min-width: 240px; max-width: 360px; animation: toastIn 0.2s var(--ease);
+  }
+  .toast.leaving { animation: toastOut 0.15s var(--ease) forwards; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
+  .toast-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .toast-success .toast-dot { background: var(--green); } .toast-error .toast-dot { background: var(--rose); } .toast-info .toast-dot { background: var(--teal); }
+
+  /* Custom confirm modal (replaces confirm()) */
+  .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+
+  /* Job detail */
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
+  .detail-item-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 3px; }
+  .detail-item-value { font-size: 13px; font-family: 'JetBrains Mono', monospace; word-break: break-word; }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 </style>
 </head>
 <body>
@@ -208,6 +319,7 @@
 </div>
 
 <div id="modalRoot"></div>
+<div id="toastRoot"></div>
 
 <script>
 // ───────────────────────── State & auth ─────────────────────────
@@ -272,15 +384,32 @@ function doLogout() {
 }
 
 // ───────────────────────── Nav / view switching ─────────────────────────
+const ICONS = {
+  overview: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+  connections: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6M6 8h12l-1 6a5 5 0 0 1-5 4a5 5 0 0 1-5-4L6 8z"/><path d="M12 18v4"/></svg>',
+  mappings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>',
+  jobs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>',
+  apikeys: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6M15.5 7.5L18 10M18 5l3 3"/></svg>',
+  usage: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  activity: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  tenants: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  backup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
+};
+
 const TENANT_NAV = [
-  { id: "connections", label: "Connections", icon: "🔌" },
-  { id: "mappings", label: "Mappings", icon: "⇄" },
-  { id: "jobs", label: "Jobs", icon: "▶" },
-  { id: "usage", label: "Usage", icon: "◈" },
+  { id: "overview", label: "Overview" },
+  { id: "connections", label: "Connections" },
+  { id: "mappings", label: "Mappings" },
+  { id: "jobs", label: "Jobs" },
+  { id: "apikeys", label: "API Keys" },
+  { id: "usage", label: "Usage" },
+  { id: "activity", label: "Activity Log" },
 ];
 const ADMIN_NAV = [
-  { id: "tenants", label: "Tenants", icon: "◫" },
-  { id: "backup", label: "Backup", icon: "◐" },
+  { id: "overview", label: "Overview" },
+  { id: "tenants", label: "Tenants" },
+  { id: "backup", label: "Backup" },
+  { id: "activity", label: "Activity Log" },
 ];
 
 function showDashboard() {
@@ -288,7 +417,7 @@ function showDashboard() {
   $("dashboard").style.display = "block";
   $("sidebarRole").textContent = session.role === "admin" ? "Admin session" : "Tenant session";
   const nav = session.role === "admin" ? ADMIN_NAV : TENANT_NAV;
-  $("navItems").innerHTML = nav.map(n => `<div class="nav-item" id="nav-${n.id}" onclick="switchView('${n.id}')">${n.icon}&nbsp;&nbsp;${n.label}</div>`).join("");
+  $("navItems").innerHTML = nav.map(n => `<div class="nav-item" id="nav-${n.id}" onclick="switchView('${n.id}')">${ICONS[n.id] || ""}${n.label}</div>`).join("");
   switchView(nav[0].id);
 }
 
@@ -298,15 +427,191 @@ function switchView(view) {
   const navEl = $("nav-" + view);
   if (navEl) navEl.classList.add("active");
   const renderers = {
+    overview: renderOverviewView,
     connections: renderConnectionsView, mappings: renderMappingsView,
-    jobs: renderJobsView, usage: renderUsageView,
-    tenants: renderTenantsView, backup: renderBackupView,
+    jobs: renderJobsView, usage: renderUsageView, apikeys: renderApiKeysView,
+    tenants: renderTenantsView, backup: renderBackupView, activity: renderActivityView,
   };
   renderers[view]();
 }
 
 function viewHeader(title, sub, actionHtml) {
   return `<div class="view-header"><div><h2 class="view-title">${title}</h2>${sub ? `<p class="view-sub">${sub}</p>` : ""}</div>${actionHtml || ""}</div>`;
+}
+
+// ───────────────────────── shared helpers: time + activity formatting ─────────────────────────
+function formatRelativeTime(dateStr) {
+  const diffSec = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diffSec < 5) return "just now";
+  if (diffSec < 60) return diffSec + "s ago";
+  const min = Math.floor(diffSec / 60);
+  if (min < 60) return min + "m ago";
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + "h ago";
+  const day = Math.floor(hr / 24);
+  if (day < 30) return day + "d ago";
+  return new Date(dateStr).toLocaleDateString();
+}
+function activityIcon(action) {
+  if (action.includes("created")) return "＋";
+  if (action.includes("deleted")) return "✕";
+  if (action.includes("paused")) return "⏸";
+  if (action.includes("resumed") || action.includes("triggered")) return "▶";
+  if (action.includes("updated")) return "✎";
+  if (action.includes("completed")) return "✓";
+  if (action.includes("failed")) return "!";
+  return "•";
+}
+function activityLabel(log) {
+  const [type, verb] = log.action.split(".");
+  const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+  const verbLabel = (verb || "").replace(/_/g, " ");
+  const m = log.metadata || {};
+  const extra = m.label || m.name || m.mappingName ? ` "${m.label || m.name || m.mappingName}"` : "";
+  return `<b>${typeLabel}</b>${extra} ${verbLabel}`;
+}
+function renderActivityRow(log) {
+  const skip = new Set(["label", "name", "mappingName"]);
+  const metaBits = Object.entries(log.metadata || {})
+    .filter(([k]) => !skip.has(k))
+    .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
+  return `
+    <div class="activity-row">
+      <div class="activity-icon">${activityIcon(log.action)}</div>
+      <div class="activity-body">
+        <div class="activity-action">${activityLabel(log)}<span class="actor-pill actor-${log.actor}">${log.actor}</span></div>
+        ${metaBits.length ? `<div class="activity-meta">${metaBits.join(" · ")}</div>` : ""}
+      </div>
+      <div class="activity-time">${formatRelativeTime(log.createdAt)}</div>
+    </div>`;
+}
+
+// ───────────────────────── OVERVIEW ─────────────────────────
+async function renderOverviewView() {
+  if (session.role === "admin") return renderAdminOverview();
+  return renderTenantOverview();
+}
+
+async function renderTenantOverview() {
+  const main = $("mainArea");
+  main.innerHTML = viewHeader("Overview", "Your integration at a glance") + '<div id="overviewBody"><div class="empty">Loading...</div></div>';
+  const body = $("overviewBody");
+  try {
+    const [connections, mappings, jobs, usage, logs] = await Promise.all([
+      api("/connections").catch(() => []),
+      api("/mappings").catch(() => []),
+      api("/jobs").catch(() => []),
+      api("/tenants/me/usage").catch(() => null),
+      api("/audit-log").catch(() => []),
+    ]);
+    viewCache.connections = connections;
+
+    const connErrors = connections.filter(c => c.status === "error").length;
+    const activeMappings = mappings.filter(m => m.isActive).length;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const jobsToday = jobs.filter(j => new Date(j.createdAt) >= today);
+    const successToday = jobsToday.filter(j => j.status === "SUCCESS").length;
+    const failedToday = jobsToday.filter(j => j.status === "FAILED").length;
+    const quotaPct = usage && usage.quota !== -1 ? Math.round((usage.used / usage.quota) * 100) : null;
+
+    body.innerHTML = `
+      <div class="metric-grid">
+        <div class="metric-card metric-accent-teal">
+          <div class="metric-card-label">${ICONS.connections}Connections</div>
+          <div class="metric-card-value">${connections.length}</div>
+          <div class="metric-card-sub">${connErrors > 0 ? `<span class="bad">${connErrors} need attention</span>` : connections.length ? `<span class="good">all healthy</span>` : "none yet"}</div>
+        </div>
+        <div class="metric-card metric-accent-violet">
+          <div class="metric-card-label">${ICONS.mappings}Active mappings</div>
+          <div class="metric-card-value">${activeMappings}</div>
+          <div class="metric-card-sub">${mappings.length - activeMappings > 0 ? (mappings.length - activeMappings) + " paused" : mappings.length ? "all running" : "none yet"}</div>
+        </div>
+        <div class="metric-card metric-accent-amber">
+          <div class="metric-card-label">${ICONS.jobs}Syncs today</div>
+          <div class="metric-card-value">${jobsToday.length}</div>
+          <div class="metric-card-sub">${jobsToday.length ? `<span class="good">${successToday} ok</span>${failedToday ? ` · <span class="bad">${failedToday} failed</span>` : ""}` : "no runs yet today"}</div>
+        </div>
+        <div class="metric-card metric-accent-rose">
+          <div class="metric-card-label">${ICONS.usage}Quota used</div>
+          <div class="metric-card-value">${quotaPct === null ? "∞" : quotaPct + "%"}</div>
+          <div class="metric-card-sub">${usage ? `${usage.used} / ${usage.quota === -1 ? "unlimited" : usage.quota} this month` : "—"}</div>
+        </div>
+      </div>
+      <div class="section-title">Recent activity</div>
+      <div class="panel">${logs.length ? logs.slice(0, 6).map(renderActivityRow).join("") : '<div class="empty"><div class="empty-icon">◌</div>Nothing yet — create a connection to get started.</div>'}</div>
+    `;
+  } catch (err) {
+    body.innerHTML = `<div class="empty status-err">${err.message}</div>`;
+  }
+}
+
+async function renderAdminOverview() {
+  const main = $("mainArea");
+  main.innerHTML = viewHeader("Overview", "Platform status") + '<div id="overviewBody"><div class="empty">Loading...</div></div>';
+  const body = $("overviewBody");
+  try {
+    const [tenants, backupCfg, logs] = await Promise.all([
+      api("/tenants").catch(() => []),
+      api("/admin/backup-config").catch(() => null),
+      api("/audit-log/admin").catch(() => []),
+    ]);
+    const planCounts = {};
+    tenants.forEach(t => { const p = (t.plan && t.plan.name) || t.planId; planCounts[p] = (planCounts[p] || 0) + 1; });
+    const planSummary = Object.entries(planCounts).map(([p, c]) => `${c} ${p}`).join(", ") || "no tenants yet";
+
+    body.innerHTML = `
+      <div class="metric-grid">
+        <div class="metric-card metric-accent-teal">
+          <div class="metric-card-label">${ICONS.tenants}Tenants</div>
+          <div class="metric-card-value">${tenants.length}</div>
+          <div class="metric-card-sub">${planSummary}</div>
+        </div>
+        <div class="metric-card metric-accent-violet">
+          <div class="metric-card-label">${ICONS.backup}Backups</div>
+          <div class="metric-card-value">${backupCfg && backupCfg.enabled ? "On" : "Off"}</div>
+          <div class="metric-card-sub">${backupCfg && backupCfg.lastRunAt ? "last run " + formatRelativeTime(backupCfg.lastRunAt) : "never run"}</div>
+        </div>
+      </div>
+      <div class="section-title">Recent activity</div>
+      <div class="panel">${logs.length ? logs.slice(0, 10).map(renderActivityRow).join("") : '<div class="empty"><div class="empty-icon">◌</div>No activity yet.</div>'}</div>
+    `;
+  } catch (err) {
+    body.innerHTML = `<div class="empty status-err">${err.message}</div>`;
+  }
+}
+
+// ───────────────────────── ACTIVITY LOG ─────────────────────────
+let activityState = { allLogs: [], filter: null };
+
+async function renderActivityView() {
+  const main = $("mainArea");
+  main.innerHTML = viewHeader("Activity Log", session.role === "admin" ? "Platform-wide activity" : "Everything that's happened on this account")
+    + '<div id="activityFilterBar" class="activity-filter-bar"></div><div id="activityList" class="panel"></div>';
+  try {
+    const logs = await api(session.role === "admin" ? "/audit-log/admin" : "/audit-log");
+    activityState = { allLogs: logs, filter: null };
+    renderActivityFilterBar();
+    renderActivityList(logs);
+  } catch (err) {
+    $("activityList").innerHTML = `<div class="empty status-err">${err.message}</div>`;
+  }
+}
+function renderActivityFilterBar() {
+  const types = Array.from(new Set(activityState.allLogs.map(l => l.action.split(".")[0])));
+  $("activityFilterBar").innerHTML = `
+    <button class="filter-chip ${!activityState.filter ? "active" : ""}" onclick="setActivityFilter(null)">All</button>
+    ${types.map(t => `<button class="filter-chip ${activityState.filter === t ? "active" : ""}" onclick="setActivityFilter('${t}')">${t}</button>`).join("")}
+  `;
+}
+function setActivityFilter(type) {
+  activityState.filter = type;
+  renderActivityFilterBar();
+  renderActivityList(type ? activityState.allLogs.filter(l => l.action.startsWith(type + ".")) : activityState.allLogs);
+}
+function renderActivityList(logs) {
+  $("activityList").innerHTML = logs.length === 0
+    ? '<div class="empty"><div class="empty-icon">◌</div>No activity yet.</div>'
+    : logs.map(renderActivityRow).join("");
 }
 
 function closeModal() { $("modalRoot").innerHTML = ""; }
@@ -319,6 +624,40 @@ function openModal(title, bodyHtml, opts) {
         <div class="modal-body">${bodyHtml}</div>
       </div>
     </div>`;
+}
+
+// Toast notifications — replaces alert() for non-blocking feedback.
+let toastCounter = 0;
+function toast(message, type) {
+  type = type || "info";
+  const id = "toast-" + (toastCounter++);
+  const el = document.createElement("div");
+  el.className = "toast toast-" + type;
+  el.id = id;
+  el.innerHTML = `<span class="toast-dot"></span><span>${message}</span>`;
+  $("toastRoot").appendChild(el);
+  setTimeout(() => {
+    el.classList.add("leaving");
+    setTimeout(() => el.remove(), 180);
+  }, 3200);
+}
+
+// Custom confirm modal — replaces confirm() so destructive actions get a
+// styled dialog instead of the browser's default. Promise-based so call
+// sites can keep using `if (!(await confirmModal(...))) return;`.
+function confirmModal(message, opts) {
+  const danger = opts && opts.danger;
+  return new Promise((resolve) => {
+    const cleanup = (result) => { closeModal(); resolve(result); };
+    openModal(opts && opts.title || "Are you sure?", `
+      <p style="font-size:13px;color:var(--text-dim);line-height:1.5;margin:0;">${message}</p>
+      <div class="confirm-actions">
+        <button class="btn-ghost btn-sm" onclick="window.__confirmModalResolve(false)">Cancel</button>
+        <button class="${danger ? "btn-danger" : "btn-primary"} btn-sm" onclick="window.__confirmModalResolve(true)">${(opts && opts.confirmLabel) || "Confirm"}</button>
+      </div>
+    `);
+    window.__confirmModalResolve = cleanup;
+  });
 }
 
 // ───────────────────────── CONNECTIONS ─────────────────────────
@@ -336,7 +675,10 @@ async function renderConnectionsView() {
             <td class="mono">${c.connectorType}</td>
             <td><span class="badge ${c.status === 'connected' ? 'badge-green' : c.status === 'error' ? 'badge-rose' : 'badge-gray'}">${c.status}</span></td>
             <td class="mono" style="color:var(--text-dim);font-size:11px;">${c.lastCheckedAt ? new Date(c.lastCheckedAt).toLocaleString() : '—'}</td>
-            <td><button class="btn-ghost btn-sm" onclick="testConnection('${c.id}')">Test</button></td>
+            <td style="display:flex;gap:6px;">
+              <button class="btn-ghost btn-sm" onclick="testConnection('${c.id}')">Test</button>
+              <button class="btn-danger btn-sm" onclick="deleteConnection('${c.id}')">Delete</button>
+            </td>
           </tr>`).join("")
         }</tbody></table>`;
   } catch (err) {
@@ -347,9 +689,18 @@ async function renderConnectionsView() {
 async function testConnection(id) {
   try {
     const result = await api(`/connections/${id}/test`, { method: "POST" });
-    alert(result.ok ? "Connection OK" : "Connection failed: " + (result.message || "unknown error"));
+    toast(result.ok ? "Connection OK" : "Connection failed: " + (result.message || "unknown error"), result.ok ? "success" : "error");
     renderConnectionsView();
-  } catch (err) { alert("Error: " + err.message); }
+  } catch (err) { toast("Error: " + err.message, "error"); }
+}
+
+async function deleteConnection(id) {
+  if (!(await confirmModal("Delete this connection? Any mapping still using it will start failing until you point it elsewhere.", { danger: true, confirmLabel: "Delete" }))) return;
+  try {
+    await api(`/connections/${id}`, { method: "DELETE" });
+    toast("Connection deleted", "success");
+    renderConnectionsView();
+  } catch (err) { toast("Error: " + err.message, "error"); }
 }
 
 function openNewConnectionModal() {
@@ -557,7 +908,12 @@ async function renderMappingsView() {
             <td class="mono" style="font-size:11px;">${m.sourceObject} <span style="color:var(--text-dim);">→</span> ${m.targetObject}</td>
             <td><span class="badge badge-teal">${m.triggerType}</span></td>
             <td><span class="badge ${m.isActive ? 'badge-green' : 'badge-gray'}">${m.isActive ? 'active' : 'paused'}</span></td>
-            <td><button class="btn-ghost btn-sm" onclick="triggerSync('${m.id}')">Run now</button></td>
+            <td style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn-ghost btn-sm" onclick="triggerSync('${m.id}')">Run now</button>
+              <button class="btn-ghost btn-sm" onclick="editMapping('${m.id}')">Edit</button>
+              <button class="btn-ghost btn-sm" onclick="toggleMappingActive('${m.id}', ${!m.isActive})">${m.isActive ? "Pause" : "Resume"}</button>
+              <button class="btn-danger btn-sm" onclick="deleteMapping('${m.id}')">Delete</button>
+            </td>
           </tr>`).join("")
         }</tbody></table>`;
   } catch (err) {
@@ -568,21 +924,56 @@ async function renderMappingsView() {
 async function triggerSync(mappingId) {
   try {
     const result = await api("/jobs/trigger", { method: "POST", body: JSON.stringify({ mappingId }) });
-    alert("Sync queued (job " + result.jobId + ")");
-  } catch (err) { alert("Error: " + err.message); }
+    toast("Sync queued (job " + result.jobId.slice(0, 8) + "...)", "success");
+  } catch (err) { toast("Error: " + err.message, "error"); }
 }
 
-async function openMappingBuilder() {
+async function toggleMappingActive(id, newActive) {
+  try {
+    await api(`/mappings/${id}`, { method: "PATCH", body: JSON.stringify({ isActive: newActive }) });
+    toast(newActive ? "Mapping resumed" : "Mapping paused", "success");
+    renderMappingsView();
+  } catch (err) { toast("Error: " + err.message, "error"); }
+}
+
+async function deleteMapping(id) {
+  if (!(await confirmModal("Delete this mapping? This cannot be undone — its job history stays, but the mapping itself is gone.", { danger: true, confirmLabel: "Delete" }))) return;
+  try {
+    await api(`/mappings/${id}`, { method: "DELETE" });
+    toast("Mapping deleted", "success");
+    renderMappingsView();
+  } catch (err) { toast("Error: " + err.message, "error"); }
+}
+
+async function editMapping(id) {
+  try {
+    const mapping = await api(`/mappings/${id}`);
+    openMappingBuilder(mapping);
+  } catch (err) { toast("Error: " + err.message, "error"); }
+}
+
+async function openMappingBuilder(existingMapping) {
   const conns = viewCache.connections || await api("/connections").catch(() => []);
-  builderState = { name: "New sync", sourceConnId: "", targetConnId: "", sourceObj: "", targetObj: "", sourceFields: [], targetFields: [], rules: [], openConfigFor: null, suggestOpenFor: null, sourceSearchQuery: "", targetSearchQuery: "" };
-  openModal("New mapping", `
+  const isEdit = Boolean(existingMapping);
+  builderState = {
+    editId: isEdit ? existingMapping.id : null,
+    name: isEdit ? existingMapping.name : "New sync",
+    sourceConnId: isEdit ? existingMapping.sourceConnectionId : "",
+    targetConnId: isEdit ? existingMapping.targetConnectionId : "",
+    sourceObj: isEdit ? existingMapping.sourceObject : "",
+    targetObj: isEdit ? existingMapping.targetObject : "",
+    sourceFields: [], targetFields: [],
+    rules: isEdit ? (existingMapping.fieldMappings || []).map(r => ({ ...r })) : [],
+    openConfigFor: null, suggestOpenFor: null, sourceSearchQuery: "", targetSearchQuery: "",
+  };
+  openModal(isEdit ? "Edit mapping" : "New mapping", `
     <div class="field-row"><label>Name</label><input id="mbName" value="${builderState.name}"></div>
     <div class="row2">
-      <div class="field-row"><label>Source connection</label><select id="mbSourceConn" onchange="mbConnChange('source')"><option value="">Choose</option>${conns.map(c => `<option value="${c.id}" ${c.status !== 'connected' ? 'disabled' : ''}>${c.label}${c.status !== 'connected' ? ' (' + c.status + ')' : ''}</option>`).join("")}</select></div>
+      <div class="field-row"><label>Source connection</label><select id="mbSourceConn" onchange="mbConnChange('source')"><option value="">Choose</option>${conns.map(c => `<option value="${c.id}" ${c.id === builderState.sourceConnId ? "selected" : ""} ${c.status !== 'connected' ? 'disabled' : ''}>${c.label}${c.status !== 'connected' ? ' (' + c.status + ')' : ''}</option>`).join("")}</select></div>
       <div class="field-row"><label>Source object</label><select id="mbSourceObj" onchange="mbObjChange('source')" disabled><option value="">Choose connection first</option></select></div>
     </div>
     <div class="row2">
-      <div class="field-row"><label>Target connection</label><select id="mbTargetConn" onchange="mbConnChange('target')"><option value="">Choose</option>${conns.map(c => `<option value="${c.id}" ${c.status !== 'connected' ? 'disabled' : ''}>${c.label}${c.status !== 'connected' ? ' (' + c.status + ')' : ''}</option>`).join("")}</select></div>
+      <div class="field-row"><label>Target connection</label><select id="mbTargetConn" onchange="mbConnChange('target')"><option value="">Choose</option>${conns.map(c => `<option value="${c.id}" ${c.id === builderState.targetConnId ? "selected" : ""} ${c.status !== 'connected' ? 'disabled' : ''}>${c.label}${c.status !== 'connected' ? ' (' + c.status + ')' : ''}</option>`).join("")}</select></div>
       <div class="field-row"><label>Target object</label><select id="mbTargetObj" onchange="mbObjChange('target')" disabled><option value="">Choose connection first</option></select></div>
     </div>
     <div id="mbRulesSection" style="display:none;">
@@ -607,8 +998,36 @@ async function openMappingBuilder() {
       </div>
     </div>
     <div id="mbError" class="status-err" style="display:none;"></div>
-    <button class="btn-primary" onclick="saveMapping()" style="margin-top:12px;">Save mapping</button>
+    <button class="btn-primary" onclick="saveMapping()" style="margin-top:12px;">${isEdit ? "Save changes" : "Save mapping"}</button>
   `, { wide: true });
+
+  if (isEdit) {
+    // Pre-load both sides' object-type dropdown + field list so existing
+    // rules render immediately instead of requiring the user to reselect
+    // everything just to change one mapping.
+    await mbPreloadForEdit("source", builderState.sourceConnId, builderState.sourceObj);
+    await mbPreloadForEdit("target", builderState.targetConnId, builderState.targetObj);
+    if (builderState.sourceObj && builderState.targetObj) {
+      $("mbRulesSection").style.display = "block";
+      mbRenderSourceFields();
+      mbRenderTargetFields();
+    }
+  }
+}
+
+async function mbPreloadForEdit(which, connId, objType) {
+  const objSel = $(which === "source" ? "mbSourceObj" : "mbTargetObj");
+  if (!connId) return;
+  try {
+    const types = await api(`/connections/${connId}/objects`);
+    objSel.innerHTML = '<option value="">Choose object</option>' + types.map(t => `<option value="${t}" ${t === objType ? "selected" : ""}>${t}</option>`).join("");
+    objSel.disabled = false;
+  } catch (e) { objSel.innerHTML = '<option value="">Failed to load</option>'; return; }
+  if (!objType) return;
+  try {
+    const fields = await api(`/connections/${connId}/objects/${objType}/fields`);
+    if (which === "source") builderState.sourceFields = fields; else builderState.targetFields = fields;
+  } catch (e) {}
 }
 
 async function mbConnChange(which) {
@@ -697,10 +1116,10 @@ function mbAutoMapByName() {
   });
   mbRenderSourceFields();
   mbRenderTargetFields();
-  if (mapped === 0) alert("No confident name matches found — map the rest manually or click a target field for suggestions.");
+  toast(mapped === 0 ? "No confident name matches found — map manually or click a target for suggestions." : `Auto-mapped ${mapped} field${mapped === 1 ? "" : "s"}`, mapped === 0 ? "info" : "success");
 }
-function mbClearAllMappings() {
-  if (builderState.rules.length && !confirm("Remove all " + builderState.rules.length + " field mapping(s)?")) return;
+async function mbClearAllMappings() {
+  if (builderState.rules.length && !(await confirmModal("Remove all " + builderState.rules.length + " field mapping(s)?", { danger: true, confirmLabel: "Clear all" }))) return;
   builderState.rules = [];
   builderState.openConfigFor = null;
   builderState.suggestOpenFor = null;
@@ -949,13 +1368,18 @@ function buildFieldMappingsPayload() {
 async function saveMapping() {
   const errEl = $("mbError");
   errEl.style.display = "none";
+  const payload = {
+    name: $("mbName").value, sourceConnectionId: builderState.sourceConnId, targetConnectionId: builderState.targetConnId,
+    sourceObject: builderState.sourceObj, targetObject: builderState.targetObj,
+    fieldMappings: buildFieldMappingsPayload(),
+    triggerType: "poll", pollIntervalSec: 300,
+  };
   try {
-    await api("/mappings", { method: "POST", body: JSON.stringify({
-      name: $("mbName").value, sourceConnectionId: builderState.sourceConnId, targetConnectionId: builderState.targetConnId,
-      sourceObject: builderState.sourceObj, targetObject: builderState.targetObj,
-      fieldMappings: buildFieldMappingsPayload(),
-      triggerType: "poll", pollIntervalSec: 300,
-    })});
+    if (builderState.editId) {
+      await api(`/mappings/${builderState.editId}`, { method: "PATCH", body: JSON.stringify(payload) });
+    } else {
+      await api("/mappings", { method: "POST", body: JSON.stringify(payload) });
+    }
     closeModal();
     renderMappingsView();
   } catch (err) { errEl.textContent = err.message; errEl.style.display = "block"; }
@@ -964,19 +1388,44 @@ async function saveMapping() {
 // ───────────────────────── JOBS ─────────────────────────
 async function renderJobsView() {
   const main = $("mainArea");
-  main.innerHTML = viewHeader("Jobs", "Recent sync run history") + '<div id="jobList" class="panel"></div>';
+  main.innerHTML = viewHeader("Jobs", "Recent sync run history — click a row for full detail") + '<div id="jobList" class="panel"></div>';
   try {
     const jobs = await api("/jobs");
-    $("jobList").innerHTML = jobs.length === 0 ? '<div class="empty">No sync jobs yet.</div>' :
+    $("jobList").innerHTML = jobs.length === 0 ? '<div class="empty"><div class="empty-icon">◌</div>No sync jobs yet.</div>' :
       `<table><thead><tr><th>Mapping</th><th>Status</th><th>Records</th><th>Started</th></tr></thead><tbody>${
-        jobs.map(j => `<tr>
+        jobs.map(j => `<tr style="cursor:pointer;" onclick="openJobDetail('${j.id}')">
           <td>${j.mapping?.name || j.mappingId}</td>
-          <td><span class="badge ${j.status === 'SUCCESS' ? 'badge-green' : j.status === 'FAILED' ? 'badge-rose' : 'badge-amber'}">${j.status}</span></td>
+          <td><span class="badge ${j.status === 'SUCCESS' ? 'badge-green' : j.status === 'FAILED' ? 'badge-rose' : j.status === 'RETRYING' ? 'badge-amber' : 'badge-gray'}">${j.status}</span></td>
           <td class="mono">${j.recordsRead} read / ${j.recordsWritten} written</td>
           <td class="mono" style="font-size:11px;color:var(--text-dim);">${new Date(j.createdAt).toLocaleString()}</td>
         </tr>`).join("")
       }</tbody></table>`;
   } catch (err) { $("jobList").innerHTML = `<div class="empty status-err">${err.message}</div>`; }
+}
+
+async function openJobDetail(jobId) {
+  try {
+    const j = await api(`/jobs/${jobId}`);
+    const duration = j.startedAt && j.finishedAt
+      ? Math.round((new Date(j.finishedAt) - new Date(j.startedAt)) / 1000) + "s"
+      : j.startedAt ? "still running" : "not yet started";
+    openModal("Job detail", `
+      <div class="detail-grid">
+        <div><div class="detail-item-label">Mapping</div><div class="detail-item-value">${j.mapping?.name || j.mappingId}</div></div>
+        <div><div class="detail-item-label">Status</div><div class="detail-item-value"><span class="badge ${j.status === 'SUCCESS' ? 'badge-green' : j.status === 'FAILED' ? 'badge-rose' : j.status === 'RETRYING' ? 'badge-amber' : 'badge-gray'}">${j.status}</span></div></div>
+        <div><div class="detail-item-label">Source → Target</div><div class="detail-item-value">${j.mapping ? `${j.mapping.sourceObject} → ${j.mapping.targetObject}` : "—"}</div></div>
+        <div><div class="detail-item-label">Attempt</div><div class="detail-item-value">${j.attempt}</div></div>
+        <div><div class="detail-item-label">Records read</div><div class="detail-item-value">${j.recordsRead}</div></div>
+        <div><div class="detail-item-label">Records written</div><div class="detail-item-value">${j.recordsWritten}</div></div>
+        <div><div class="detail-item-label">Started</div><div class="detail-item-value">${j.startedAt ? new Date(j.startedAt).toLocaleString() : "—"}</div></div>
+        <div><div class="detail-item-label">Duration</div><div class="detail-item-value">${duration}</div></div>
+        <div><div class="detail-item-label">Queued at</div><div class="detail-item-value">${new Date(j.createdAt).toLocaleString()}</div></div>
+        <div><div class="detail-item-label">Finished</div><div class="detail-item-value">${j.finishedAt ? new Date(j.finishedAt).toLocaleString() : "—"}</div></div>
+      </div>
+      ${j.errorMessage ? `<div style="margin-top:14px;"><div class="detail-item-label">Error</div><div class="detail-item-value" style="color:var(--rose);background:rgba(251,113,133,0.08);border:1px solid rgba(251,113,133,0.25);border-radius:6px;padding:10px 12px;margin-top:4px;">${j.errorMessage}</div></div>` : ""}
+      ${j.status === "FAILED" ? `<button class="btn-primary btn-sm" style="align-self:flex-start;margin-top:14px;" onclick="closeModal();triggerSync('${j.mappingId}')">Retry sync</button>` : ""}
+    `);
+  } catch (err) { toast("Error: " + err.message, "error"); }
 }
 
 // ───────────────────────── USAGE ─────────────────────────
@@ -992,6 +1441,65 @@ async function renderUsageView() {
       ${u.quota !== -1 ? `<div style="background:var(--bg);border-radius:6px;height:8px;margin-top:14px;overflow:hidden;"><div style="background:var(--teal);height:100%;width:${pct}%;"></div></div>` : ""}
     `;
   } catch (err) { $("usageBox").innerHTML = `<div class="status-err">${err.message}</div>`; }
+}
+
+// ───────────────────────── API KEYS (tenant self-service) ─────────────────────────
+async function renderApiKeysView() {
+  const main = $("mainArea");
+  main.innerHTML = viewHeader("API Keys", "Keys that can authenticate as this tenant", '<button class="btn-primary" onclick="openNewApiKeyModal()">+ New key</button>') + '<div id="apiKeyList" class="panel"></div>';
+  try {
+    const keys = await api("/api-keys");
+    $("apiKeyList").innerHTML = keys.length === 0
+      ? '<div class="empty">No API keys yet.</div>'
+      : `<table><thead><tr><th>Label</th><th>Created</th><th>Status</th><th></th></tr></thead><tbody>${
+          keys.map(k => `<tr>
+            <td>${k.label || "(unlabeled)"}</td>
+            <td class="mono" style="font-size:11px;color:var(--text-dim);">${new Date(k.createdAt).toLocaleDateString()}</td>
+            <td><span class="badge ${k.revokedAt ? "badge-rose" : "badge-green"}">${k.revokedAt ? "revoked" : "active"}</span></td>
+            <td>${!k.revokedAt ? `<button class="btn-danger btn-sm" onclick="revokeApiKey('${k.id}')">Revoke</button>` : ""}</td>
+          </tr>`).join("")
+        }</tbody></table>`;
+  } catch (err) {
+    $("apiKeyList").innerHTML = `<div class="empty status-err">${err.message}</div>`;
+  }
+}
+
+function openNewApiKeyModal() {
+  openModal("New API key", `
+    <div class="field-row"><label>Label <span style="color:var(--text-dim);font-weight:400;">(optional)</span></label><input id="newKeyLabel" placeholder="e.g. CI pipeline, staging server"></div>
+    <div id="newKeyError" class="status-err" style="display:none;"></div>
+    <button class="btn-primary" onclick="createApiKey()">Create key</button>
+  `);
+}
+
+async function createApiKey() {
+  const errEl = $("newKeyError");
+  errEl.style.display = "none";
+  try {
+    const result = await api("/api-keys", { method: "POST", body: JSON.stringify({ label: $("newKeyLabel").value || undefined }) });
+    openModal("API key created", `
+      <p style="font-size:13px;color:var(--text-dim);">Shown once — copy it now, it can't be retrieved again:</p>
+      <input readonly value="${result.apiKey}" class="mono" onclick="this.select()">
+    `);
+  } catch (err) { errEl.textContent = err.message; errEl.style.display = "block"; }
+}
+
+async function revokeApiKey(id) {
+  // Guard against locking yourself out — revoking your only active key
+  // would leave no way back into the dashboard short of an admin
+  // re-bootstrapping one for you.
+  let extraWarning = "";
+  try {
+    const keys = await api("/api-keys");
+    const activeCount = keys.filter(k => !k.revokedAt).length;
+    if (activeCount <= 1) extraWarning = " This is your ONLY active key — revoking it will lock you out of this dashboard until an admin issues a new one.";
+  } catch (e) {}
+  if (!(await confirmModal("Revoke this API key? Anything using it stops working immediately." + extraWarning, { danger: true, confirmLabel: "Revoke" }))) return;
+  try {
+    await api(`/api-keys/${id}`, { method: "DELETE" });
+    toast("Key revoked", "success");
+    renderApiKeysView();
+  } catch (err) { toast("Error: " + err.message, "error"); }
 }
 
 // ───────────────────────── ADMIN: TENANTS ─────────────────────────
@@ -1037,7 +1545,7 @@ async function bootstrapKey(tenantId) {
       <p style="font-size:13px;color:var(--text-dim);">Shown once — copy it now, it can't be retrieved again:</p>
       <input readonly value="${result.apiKey}" class="mono" onclick="this.select()">
     `);
-  } catch (err) { alert("Error: " + err.message); }
+  } catch (err) { toast("Error: " + err.message, "error"); }
 }
 
 // ───────────────────────── ADMIN: BACKUP ─────────────────────────
@@ -1088,8 +1596,8 @@ async function saveBackupConfig() {
   } catch (err) { errEl.textContent = err.message; errEl.style.display = "block"; }
 }
 async function runBackupNow() {
-  try { await api("/admin/backup-config/run-now", { method: "POST" }); alert("Backup started"); renderBackupView(); }
-  catch (err) { alert("Error: " + err.message); }
+  try { await api("/admin/backup-config/run-now", { method: "POST" }); toast("Backup started", "success"); renderBackupView(); }
+  catch (err) { toast("Error: " + err.message, "error"); }
 }
 
 // ───────────────────────── Boot ─────────────────────────

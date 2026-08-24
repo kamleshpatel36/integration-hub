@@ -4,6 +4,7 @@ import { prisma } from "../../db/client";
 import { encryptCredentials, decryptCredentials } from "../../services/crypto";
 import { createConnector } from "../../connectors/factory";
 import { requireTenantAuth } from "../middleware/auth";
+import { recordAuditLog } from "../../services/auditLog";
 
 const router = Router();
 router.use(requireTenantAuth);
@@ -38,6 +39,12 @@ router.post("/", async (req, res, next) => {
     });
 
     res.status(201).json({ ...updated, credentialsEnc: undefined, testResult: result });
+
+    recordAuditLog({
+      tenantId: req.tenantId, actor: "tenant", action: "connection.created",
+      targetType: "connection", targetId: connection.id,
+      metadata: { label: body.label, connectorType: body.connectorType, testResult: result.ok ? "connected" : "error" },
+    });
   } catch (err) {
     next(err);
   }
@@ -105,11 +112,20 @@ router.get("/", async (req, res, next) => {
 
 router.delete("/:id", async (req, res, next) => {
   try {
+    const existing = await prisma.connection.findFirst({ where: { id: req.params.id, tenantId: req.tenantId! } });
     const result = await prisma.connection.deleteMany({
       where: { id: req.params.id, tenantId: req.tenantId! },
     });
     if (result.count === 0) return res.status(404).json({ error: "Connection not found" });
     res.status(204).send();
+
+    if (existing) {
+      recordAuditLog({
+        tenantId: req.tenantId, actor: "tenant", action: "connection.deleted",
+        targetType: "connection", targetId: req.params.id,
+        metadata: { label: existing.label, connectorType: existing.connectorType },
+      });
+    }
   } catch (err) {
     next(err);
   }

@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { prisma } from "../../db/client";
 import { requireTenantAuth } from "../middleware/auth";
 import { validateCustomJsSyntax } from "../../services/safeExpression";
+import { recordAuditLog } from "../../services/auditLog";
 
 const router = Router();
 router.use(requireTenantAuth);
@@ -29,6 +30,7 @@ const createMappingSchema = z.object({
   fieldMappings: z.array(fieldMappingRuleSchema),
   triggerType: z.enum(["poll", "webhook", "manual"]).default("poll"),
   pollIntervalSec: z.number().min(60).default(300),
+  isActive: z.boolean().optional(),
 });
 
 // Confirms both connections referenced in a mapping actually belong to this
@@ -75,6 +77,12 @@ router.post("/", async (req, res, next) => {
     // webhookSecret is returned in full exactly once here; GET routes below
     // never include it in their response.
     res.status(201).json(mapping);
+
+    recordAuditLog({
+      tenantId: req.tenantId, actor: "tenant", action: "mapping.created",
+      targetType: "mapping", targetId: mapping.id,
+      metadata: { name: body.name, sourceObject: body.sourceObject, targetObject: body.targetObject, ruleCount: body.fieldMappings.length },
+    });
   } catch (err) {
     next(err);
   }
@@ -154,6 +162,13 @@ router.patch("/:id", async (req, res, next) => {
     if (result.count === 0) return res.status(404).json({ error: "Mapping not found" });
     const mapping = await prisma.mapping.findUniqueOrThrow({ where: { id: req.params.id } });
     res.json(mapping);
+
+    recordAuditLog({
+      tenantId: req.tenantId, actor: "tenant",
+      action: body.isActive === false ? "mapping.paused" : body.isActive === true ? "mapping.resumed" : "mapping.updated",
+      targetType: "mapping", targetId: mapping.id,
+      metadata: { name: mapping.name, changedFields: Object.keys(body) },
+    });
   } catch (err) {
     next(err);
   }
@@ -161,11 +176,19 @@ router.patch("/:id", async (req, res, next) => {
 
 router.delete("/:id", async (req, res, next) => {
   try {
+    const existing = await prisma.mapping.findFirst({ where: { id: req.params.id, tenantId: req.tenantId! } });
     const result = await prisma.mapping.deleteMany({
       where: { id: req.params.id, tenantId: req.tenantId! },
     });
     if (result.count === 0) return res.status(404).json({ error: "Mapping not found" });
     res.status(204).send();
+
+    if (existing) {
+      recordAuditLog({
+        tenantId: req.tenantId, actor: "tenant", action: "mapping.deleted",
+        targetType: "mapping", targetId: req.params.id, metadata: { name: existing.name },
+      });
+    }
   } catch (err) {
     next(err);
   }

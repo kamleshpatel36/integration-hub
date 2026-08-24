@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../db/client";
 import { requireAdmin, requireTenantAuth } from "../middleware/auth";
+import { recordAuditLog } from "../../services/auditLog";
 
 const router = Router();
 
@@ -17,6 +18,11 @@ router.post("/", requireAdmin, async (req, res, next) => {
     const body = createTenantSchema.parse(req.body);
     const tenant = await prisma.tenant.create({ data: body });
     res.status(201).json(tenant);
+
+    recordAuditLog({
+      tenantId: tenant.id, actor: "admin", action: "tenant.created",
+      targetType: "tenant", targetId: tenant.id, metadata: { name: body.name, planId: body.planId },
+    });
   } catch (err) {
     next(err);
   }

@@ -211,3 +211,21 @@ model BackupRun {
   @@index([configId, startedAt])
   @@map("backup_runs")
 }
+
+// ─────────────────────────────────────────────
+// AUDIT LOG — who did what, when. Powers the Activity Log view.
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String?  // null for platform-level (admin) actions like creating a tenant
+  actor      String   // "tenant" | "admin" | "system" (e.g. scheduler-triggered)
+  action     String   // e.g. "connection.created", "mapping.deleted", "job.triggered"
+  targetType String?  // "connection" | "mapping" | "tenant" | "apiKey" | "backupConfig" | ...
+  targetId   String?
+  metadata   Json?    // small, non-sensitive context — never credentials/secrets
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
